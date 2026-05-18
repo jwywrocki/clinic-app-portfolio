@@ -38,7 +38,7 @@ export function HeroSection() {
 
         // Fetch hero image setting
         try {
-          const settingsResponse = await fetch('/api/admin/settings?key=hero_image');
+          const settingsResponse = await fetch('/api/settings/public?key=hero_image');
           if (settingsResponse.ok) {
             const setting = await settingsResponse.json();
             if (setting && setting.value) {

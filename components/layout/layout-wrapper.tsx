@@ -95,7 +95,7 @@ export function LayoutWrapper({
 
         // Fetch site settings for SEO
         try {
-          const settingsResponse = await fetch('/api/admin/settings');
+          const settingsResponse = await fetch('/api/settings/public');
           if (settingsResponse.ok) {
             const allSettings = await settingsResponse.json();
             const settings: Record<string, string> = {};
