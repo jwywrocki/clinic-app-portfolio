@@ -182,7 +182,17 @@
   box-shadow: none !important;
 }
 
-/* Remove all gradients */
+/* Remove all animations, gradients and background images, force color override */
+.high-contrast * {
+  background-image: none !important;
+  backdrop-filter: none !important;
+  mix-blend-mode: normal !important;
+  animation: none !important;
+  transition: none !important;
+  transform: none !important;
+  color: #ffff00 !important; /* Overrides inline styles in rich text */
+}
+
 .high-contrast [class*='bg-gradient'],
 .high-contrast [class*='from-'],
 .high-contrast [class*='via-'],

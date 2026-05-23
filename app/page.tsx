@@ -6,15 +6,17 @@ import { NewsSection } from '@/components/home/news-section';
 import { CtaSection } from '@/components/home/cta-section';
 
 export default function HomePage() {
-    return (
-        <LayoutWrapper>
-            <SkipLink href="#main-content">Przejdź do głównej treści</SkipLink>
-            <div id="main-content" className="min-h-screen bg-gradient-to-br from-blue-50 to-white">
-                <HeroSection />
-                <NewsSection />
-                <ServicesSection />
-                <CtaSection />
-            </div>
-        </LayoutWrapper>
-    );
+  return (
+    <LayoutWrapper>
+      <SkipLink href="#main-content">Przejdź do głównej treści</SkipLink>
+      <div id="main-content" className="min-h-screen relative overflow-hidden">
+        <div className="relative z-10 w-full">
+          <HeroSection />
+          <NewsSection />
+          <ServicesSection />
+          <CtaSection />
+        </div>
+      </div>
+    </LayoutWrapper>
+  );
 }

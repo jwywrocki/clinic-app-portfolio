@@ -91,19 +91,23 @@ export function DoctorsList({ specializationIds, className = '' }: DoctorsListPr
       {doctors.map(doctor => (
         <Card
           key={doctor.id}
-          className="group hover:shadow-xl transition-all duration-300 border-0 shadow-lg overflow-hidden"
+          className="group transition-all duration-300 transform hover:-translate-y-1 overflow-hidden border border-white/40 shadow-[0_10px_40px_-15px_rgba(59,130,246,0.2)] bg-white/70 backdrop-blur-md rounded-2xl hover:shadow-[0_20px_40px_-15px_rgba(59,130,246,0.3)] hover:bg-white/80"
         >
-          <CardHeader>
+          <div className="absolute inset-0 bg-gradient-to-br from-blue-100/30 via-transparent to-indigo-100/30 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none z-0"></div>
+          <CardHeader className="relative z-10">
             <CardTitle className="text-2xl font-bold text-gray-900 flex items-center justify-center">
               {doctor.first_name} {doctor.last_name}
-              <Badge variant="secondary" className="m-2 mt-2 bg-blue-100 text-blue-700 text-center">
+              <Badge
+                variant="secondary"
+                className="m-2 mt-2 bg-blue-100/50 backdrop-blur-sm text-blue-700 text-center border border-blue-200/50"
+              >
                 {doctor.specialization_names?.join(', ') ||
                   doctor.specialization_name ||
                   doctor.specialization}
               </Badge>
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="relative z-10">
             <p className="text-gray-600 line-clamp-3">
               {doctor.bio || 'Doświadczony specjalista w swojej dziedzinie.'}
             </p>

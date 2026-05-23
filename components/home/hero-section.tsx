@@ -69,7 +69,7 @@ export function HeroSection() {
   };
 
   return (
-    <section className="relative py-16 flex items-center justify-center overflow-hidden">
+    <section className="relative py-12 flex items-center justify-center overflow-hidden min-h-[50vh]">
       {/* Background Image */}
       <div className="absolute inset-0 z-0">
         <img
@@ -77,12 +77,21 @@ export function HeroSection() {
           alt="Nowoczesny budynek ośrodka zdrowia"
           className="w-full h-full object-cover"
         />
-        <div className="absolute inset-0 bg-gradient-to-r from-blue-900/90 via-blue-800/70 to-transparent"></div>
+        <div className="absolute inset-0 bg-gradient-to-r from-blue-900/95 via-blue-900/80 to-blue-900/40"></div>
+        {/* Animated Glow Orbs in Hero */}
+        <div
+          className="absolute top-0 right-0 w-[40rem] h-[40rem] bg-blue-500/50 rounded-full mix-blend-screen filter blur-[100px] animate-pulse pointer-events-none"
+          style={{ animationDuration: '6s' }}
+        ></div>
+        <div
+          className="absolute bottom-0 left-0 w-[35rem] h-[35rem] bg-indigo-500/50 rounded-full mix-blend-screen filter blur-[100px] animate-pulse pointer-events-none"
+          style={{ animationDuration: '8s', animationDelay: '1s' }}
+        ></div>
       </div>
 
       {/* Content */}
-      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-white">
-        <div className="grid lg:grid-cols-2 gap-8 items-center">
+      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-white mt-8">
+        <div className="grid lg:grid-cols-2 gap-6 items-center">
           {/* Left Column - Main Content */}
           <FadeIn direction="left" delay={0}>
             <Image
@@ -94,38 +103,46 @@ export function HeroSection() {
             />
             <div className="space-y-6 mt-4">
               <div className="space-y-3">
-                <div className="inline-flex items-center px-3 py-1 bg-blue-600/20 backdrop-blur-sm rounded-full border border-blue-400/30">
-                  <span className="text-blue-200 text-sm font-medium">
+                <div className="relative inline-flex items-center px-4 py-1.5 bg-blue-600/20 backdrop-blur-md rounded-full border border-blue-400/50 shadow-[0_0_15px_rgba(59,130,246,0.3)] overflow-hidden group">
+                  <span className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:animate-[shimmer_2s_infinite]"></span>
+                  <span className="text-blue-100 text-sm font-bold tracking-wide relative z-10">
                     SŁUŻYMY SPOŁECZNOŚCI OD 1998 ROKU
                   </span>
                 </div>
-                <h1 className="text-3xl md:text-4xl font-bold leading-tight">
-                  Profesjonalna opieka zdrowotna w sercu Łopuszna
+                <h1 className="text-3xl md:text-4xl lg:text-5xl font-extrabold leading-tight tracking-tight">
+                  <span className="text-white">Profesjonalna opieka zdrowotna w </span>
+                  <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-200 via-blue-100 to-white drop-shadow-[0_0_10px_rgba(255,255,255,0.3)]">
+                    sercu Łopuszna
+                  </span>
                 </h1>
-                <p className="text-lg text-blue-100 leading-relaxed max-w-2xl">
+                <p className="text-base md:text-lg text-blue-100 leading-relaxed max-w-2xl">
                   Zapewniamy kompleksową opiekę medyczną dla całej rodziny. Nowoczesny sprzęt,
                   doświadczeni lekarze i indywidualne podejście do każdego pacjenta.
                 </p>
               </div>
 
-              <div className="flex flex-col sm:flex-row gap-4">
+              <div className="flex flex-col sm:flex-row gap-3">
                 <Button
                   asChild
-                  size="lg"
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 text-base font-semibold rounded-xl shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105"
+                  className="group relative bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 h-auto text-base font-bold rounded-xl shadow-[0_0_20px_rgba(37,99,235,0.4)] hover:shadow-[0_0_30px_rgba(59,130,246,0.6)] transition-all duration-300 transform hover:-translate-y-1 overflow-hidden"
                 >
                   <Link href="/kontakt">
-                    Umów wizytę
-                    <ArrowRight className="ml-2 h-4 w-4" />
+                    <span className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]"></span>
+                    <span className="relative z-10 flex items-center">
+                      Umów wizytę
+                      <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
+                    </span>
                   </Link>
                 </Button>
                 <Button
                   asChild
                   variant="outline"
-                  size="lg"
-                  className="bg-white text-blue-600 hover:bg-blue-50 px-8 py-4 text-lg font-semibold rounded-xl shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105"
+                  className="group relative bg-white/10 border border-white/30 backdrop-blur-md text-white hover:bg-white/20 hover:text-white px-6 py-3 h-auto text-base font-bold rounded-xl shadow-xl transition-all duration-300 transform hover:-translate-y-1 overflow-hidden"
                 >
-                  <Link href="/uslugi">Nasze usługi</Link>
+                  <Link href="/uslugi">
+                    <span className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]"></span>
+                    <span className="relative z-10 flex items-center">Nasze usługi</span>
+                  </Link>
                 </Button>
               </div>
             </div>
@@ -144,9 +161,10 @@ export function HeroSection() {
                 .map(group => (
                   <div
                     key={group.id}
-                    className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20 shadow-xl hover:shadow-2xl transition-shadow duration-300 mb-4"
+                    className="group bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20 shadow-xl hover:shadow-[0_0_25px_rgba(59,130,246,0.3)] hover:bg-white/20 transition-all duration-300 transform hover:-translate-y-1 mb-4 relative overflow-hidden"
                   >
-                    <h3 className="text-lg font-semibold text-white mb-2">
+                    <div className="absolute inset-0 bg-gradient-to-br from-blue-400/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                    <h3 className="text-lg font-semibold text-white mb-2 relative z-10 group-hover:text-blue-200 transition-colors">
                       {group.label || 'Informacja'}
                     </h3>
                     {group.contact_details
@@ -155,8 +173,11 @@ export function HeroSection() {
                         const IconComponent = detail.type === 'hours' ? Clock : Phone;
 
                         return (
-                          <div key={detail.id} className="flex items-center space-x-3 mb-2 ml-1">
-                            <div className="bg-blue-500 p-2 rounded-lg flex-shrink-0 mt-1">
+                          <div
+                            key={detail.id}
+                            className="flex items-center space-x-3 mb-2 ml-1 relative z-10"
+                          >
+                            <div className="bg-blue-600/80 p-2 rounded-lg flex-shrink-0 mt-1 shadow-lg group-hover:scale-110 group-hover:bg-blue-500 transition-all duration-300">
                               <IconComponent className="h-5 w-5 text-white" />
                             </div>
                             <div>

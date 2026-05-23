@@ -170,14 +170,17 @@ function SurveyWidgetComponent({ surveyId, preloadedSurvey }: SurveyWidgetProps)
   if (submitted) {
     return (
       <AnimatedSection animation="fadeIn">
-        <Card className="p-8 text-center bg-green-50 border-green-200">
-          <CheckCircle className="h-16 w-16 text-green-600 mx-auto mb-4" />
-          <h3 className="text-xl font-semibold text-green-800 mb-2">
-            Dziękujemy za wypełnienie ankiety!
-          </h3>
-          <p className="text-green-700">
-            Twoja odpowiedź została zapisana. Bardzo dziękujemy za Twój czas i opinię.
-          </p>
+        <Card className="p-8 text-center border border-white/40 shadow-[0_10px_40px_-15px_rgba(34,197,94,0.2)] bg-green-50/70 backdrop-blur-md rounded-2xl relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-green-100/30 via-transparent to-transparent pointer-events-none z-0"></div>
+          <div className="relative z-10">
+            <CheckCircle className="h-16 w-16 text-green-600 mx-auto mb-4" />
+            <h3 className="text-xl font-semibold text-green-800 mb-2">
+              Dziękujemy za wypełnienie ankiety!
+            </h3>
+            <p className="text-green-700">
+              Twoja odpowiedź została zapisana. Bardzo dziękujemy za Twój czas i opinię.
+            </p>
+          </div>
         </Card>
       </AnimatedSection>
     );
@@ -185,8 +188,8 @@ function SurveyWidgetComponent({ surveyId, preloadedSurvey }: SurveyWidgetProps)
 
   return (
     <AnimatedSection animation="fadeInUp">
-      <Card className="p-6 bg-blue-50 border-blue-200">
-        <div className="mb-6">
+      <Card className="border border-white/40 shadow-[0_10px_40px_-15px_rgba(59,130,246,0.2)] bg-blue-50/70 backdrop-blur-md rounded-2xl relative p-6">
+        <div className="mb-6 relative z-10">
           <h3 className="text-xl font-semibold text-blue-900 mb-2">{survey.title}</h3>
           <p className="text-blue-700 mb-3">
             Prosimy o wypełnienie poniższej ankiety. Twoja opinia jest dla nas bardzo ważna.
@@ -302,13 +305,16 @@ function SurveyWidgetComponent({ surveyId, preloadedSurvey }: SurveyWidgetProps)
               Bardzo dziękujemy za poświęcony czas i wypełnienie ankiety.
             </p>
           </div>
-          <div className="flex justify-end">
+          <div className="flex justify-end mt-8">
             <Button
               type="submit"
               disabled={loading}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-2"
+              className="group relative bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 h-auto text-base font-bold rounded-xl shadow-[0_0_20px_rgba(37,99,235,0.3)] hover:shadow-[0_0_25px_rgba(59,130,246,0.5)] transition-all duration-300 transform hover:-translate-y-1 overflow-hidden"
             >
-              {loading ? 'Wysyłanie...' : 'Wyślij ankietę'}
+              <span className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]"></span>
+              <span className="relative z-10 flex items-center">
+                {loading ? 'Wysyłanie...' : 'Wyślij ankietę'}
+              </span>
             </Button>
           </div>
         </form>

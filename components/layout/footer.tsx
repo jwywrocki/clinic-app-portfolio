@@ -88,10 +88,18 @@ export function Footer({ menuItems = [] }: FooterProps) {
 
   return (
     <FadeIn direction="up" threshold={0.1}>
-      <footer className="bg-gray-900 text-white" role="contentinfo">
+      <footer
+        className="bg-slate-900 border-t border-slate-800 text-white relative overflow-hidden"
+        role="contentinfo"
+      >
+        <div className="absolute inset-0 z-0 pointer-events-none opacity-50">
+          <div className="absolute bottom-0 right-0 w-96 h-96 bg-blue-900/40 rounded-full mix-blend-screen filter blur-[100px]"></div>
+          <div className="absolute top-0 left-0 w-96 h-96 bg-indigo-900/40 rounded-full mix-blend-screen filter blur-[100px]"></div>
+        </div>
+
         {/* Main Footer Content */}
-        <div className="container mx-auto px-4 py-12">
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+        <div className="container mx-auto px-4 py-16 relative z-10">
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-12">
             {/* Company Info */}
             <div>
               <div className="flex items-center gap-3 mb-6">
@@ -273,16 +281,17 @@ export function Footer({ menuItems = [] }: FooterProps) {
         </div>
 
         {/* Bottom Bar */}
-        <div className="border-t border-gray-800">
-          <div className="container mx-auto px-4 py-6">
+        <div className="border-t border-slate-800/80 bg-slate-900/50 backdrop-blur-md relative z-10">
+          <div className="container mx-auto px-4 py-8">
             <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
               <p className="text-gray-400 text-sm">
-                &copy; 2026 SPZOZ GOZ Łopuszno. Wszelkie prawa zastrzeżone. Realizacja:{' '}
+                &copy; {new Date().getFullYear()} SPZOZ GOZ Łopuszno. Wszelkie prawa zastrzeżone.
+                Realizacja:{' '}
                 <a
                   href="https://jaqb.dev/"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-blue-400 hover:text-blue-300 transition-colors"
+                  className="text-blue-400 hover:text-blue-300 transition-colors font-semibold"
                 >
                   jaqb.dev
                 </a>

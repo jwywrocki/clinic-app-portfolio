@@ -151,24 +151,52 @@ export function LayoutWrapper({
   }, []); // Empty dependency array since supabase is created inside useEffect
 
   return (
-    <div className="min-h-screen bg-white">
-      {/* Dynamic SEO Metadata */}
-      <DynamicMetadata settings={siteSettings} />
+    <div className="min-h-screen bg-slate-50 relative overflow-hidden">
+      {/* Global background orbs */}
+      <div
+        className="absolute inset-0 z-0 overflow-hidden pointer-events-none [.high-contrast_&]:hidden print:hidden"
+        aria-hidden="true"
+      >
+        <div className="absolute top-[0%] right-[-5%] w-[35rem] h-[35rem] bg-blue-400/10 rounded-full mix-blend-multiply filter blur-[85px]"></div>
+        <div className="absolute top-[20%] left-[-5%] w-[38rem] h-[38rem] bg-indigo-400/10 rounded-full mix-blend-multiply filter blur-[95px]"></div>
+        <div className="absolute top-[40%] right-[10%] w-[36rem] h-[36rem] bg-blue-400/10 rounded-full mix-blend-multiply filter blur-[85px]"></div>
+        <div className="absolute top-[60%] left-[17%] w-[38rem] h-[38rem] bg-purple-400/10 rounded-full mix-blend-multiply filter blur-[100px]"></div>
+        <div className="absolute top-[80%] right-[5%] w-[35rem] h-[35rem] bg-cyan-400/10 rounded-full mix-blend-multiply filter blur-[85px]"></div>
+        <div className="absolute top-[90%] left-[10%] w-[37rem] h-[37rem] bg-sky-400/10 rounded-full mix-blend-multiply filter blur-[80px]"></div>
+      </div>
 
-      {/* Accessibility Controls - only show for non-admin routes */}
-      {showAccessibilityToolbar && !isAdminRoute && <AccessibilityToolbar />}
+      {/* Modern, elegant grid background */}
+      <div
+        className="absolute inset-0 z-0 h-full w-full opacity-30 [.high-contrast_&]:hidden print:hidden"
+        aria-hidden="true"
+      >
+        {/* Very Subtle grid lines */}
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,#cbd5e1_1px,transparent_1px),linear-gradient(to_bottom,#cbd5e1_1px,transparent_1px)] bg-[size:10rem_10rem]"></div>
+        {/* Soft highlight mask at the top, fading into the background color at the bottom */}
+        <div className="absolute inset-0 bg-slate-50 [mask-image:radial-gradient(ellipse_100%_80%_at_50%_0%,transparent_50%,#000_100%)] pointer-events-none"></div>
+        {/* Minimal gradient wash for a bit of clinic-friendly blue/indigo warmth */}
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-50/10 via-transparent to-indigo-50/10 pointer-events-none"></div>
+      </div>
 
-      {/* Cookie Consent - only show for non-admin routes */}
-      {showCookieConsent && !isAdminRoute && <CookieConsent />}
+      <div className="relative z-10 w-full flex flex-col min-h-screen">
+        {/* Dynamic SEO Metadata */}
+        <DynamicMetadata settings={siteSettings} />
 
-      {/* Header */}
-      <Header menuItems={menuItems} />
+        {/* Accessibility Controls - only show for non-admin routes */}
+        {showAccessibilityToolbar && !isAdminRoute && <AccessibilityToolbar />}
 
-      {/* Main Content */}
-      <main className="pt-20">{children}</main>
+        {/* Cookie Consent - only show for non-admin routes */}
+        {showCookieConsent && !isAdminRoute && <CookieConsent />}
 
-      {/* Footer */}
-      <Footer menuItems={menuItems} />
+        {/* Header */}
+        <Header menuItems={menuItems} />
+
+        {/* Main Content */}
+        <main className="pt-16 flex-grow flex flex-col">{children}</main>
+
+        {/* Footer */}
+        <Footer menuItems={menuItems} />
+      </div>
     </div>
   );
 }

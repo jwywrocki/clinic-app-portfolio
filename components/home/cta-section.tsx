@@ -40,7 +40,17 @@ export function CtaSection() {
   const hoursValue = primaryHours?.value || contactInfo?.hours;
 
   return (
-    <section className="py-20 bg-gradient-to-br from-blue-600 via-blue-700 to-blue-800 relative overflow-hidden">
+    <section className="py-20 bg-gradient-to-br from-blue-700 via-blue-800 to-blue-900 relative overflow-hidden">
+      {/* Dynamic Background Orbs */}
+      <div
+        className="absolute top-0 left-0 w-96 h-96 bg-blue-400/30 rounded-full mix-blend-multiply filter blur-3xl opacity-70 animate-pulse hidden md:block"
+        style={{ animationDuration: '4s' }}
+      ></div>
+      <div
+        className="absolute bottom-0 right-0 w-96 h-96 bg-indigo-500/30 rounded-full mix-blend-multiply filter blur-3xl opacity-70 animate-pulse hidden md:block"
+        style={{ animationDuration: '5s' }}
+      ></div>
+
       {/* Background Pattern */}
       <div className="absolute inset-0 opacity-10">
         <div
@@ -57,13 +67,16 @@ export function CtaSection() {
           <AnimatedSection animation="fadeInLeft">
             <div className="space-y-8">
               <div className="space-y-6">
-                <div className="inline-flex items-center px-4 py-2 bg-blue-500/20 backdrop-blur-sm rounded-full border border-blue-400/30">
-                  <span className="text-blue-200 text-sm font-medium">UMÓW SIĘ JUŻ DZIŚ</span>
+                <div className="relative inline-flex items-center px-4 py-2 bg-blue-500/20 backdrop-blur-md rounded-full border border-blue-400/50 shadow-[0_0_15px_rgba(59,130,246,0.3)] overflow-hidden group">
+                  <span className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:animate-[shimmer_2s_infinite]"></span>
+                  <span className="text-blue-100 text-sm font-bold tracking-wide relative z-10">
+                    UMÓW SIĘ JUŻ DZIŚ
+                  </span>
                 </div>
-                <h2 className="text-4xl md:text-5xl font-bold text-white leading-tight">
+                <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-white via-blue-100 to-blue-200 drop-shadow-sm leading-tight break-words">
                   Zadbaj o swoje zdrowie już dziś
                 </h2>
-                <p className="text-xl text-blue-100 leading-relaxed">
+                <p className="text-lg sm:text-xl text-blue-100 leading-relaxed">
                   Nie czekaj z wizytą u lekarza. Umów się na konsultację i zadbaj o swoje zdrowie
                   oraz zdrowie swoich bliskich. Nasz zespół specjalistów jest gotowy Ci pomóc.
                 </p>
@@ -72,23 +85,27 @@ export function CtaSection() {
               <div className="flex flex-col sm:flex-row gap-4">
                 <Button
                   asChild
-                  size="lg"
-                  className="bg-white text-blue-600 hover:bg-blue-50 px-8 py-4 text-lg font-semibold rounded-xl shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105"
+                  className="group relative bg-white text-blue-700 hover:bg-blue-50 px-5 py-3 h-auto text-base font-bold rounded-xl shadow-[0_0_20px_rgba(255,255,255,0.3)] hover:shadow-[0_0_30px_rgba(255,255,255,0.5)] transition-all duration-300 transform hover:-translate-y-1 overflow-hidden"
                 >
                   <Link href="/kontakt">
-                    <Phone className="mr-2 h-5 w-5" />
-                    Umów wizytę
+                    <span className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-blue-200/30 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]"></span>
+                    <span className="relative z-10 flex items-center">
+                      <Phone className="mr-2 h-5 w-5 group-hover:scale-110 transition-transform" />
+                      Umów wizytę
+                    </span>
                   </Link>
                 </Button>
                 <Button
                   asChild
                   variant="outline"
-                  size="lg"
-                  className="bg-white text-blue-600 hover:bg-blue-50 px-8 py-4 text-lg font-semibold rounded-xl shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105"
+                  className="group relative bg-blue-800/50 backdrop-blur-md border-blue-400/50 text-white hover:bg-blue-700 hover:text-white px-5 py-3 h-auto text-base font-bold rounded-xl shadow-xl hover:shadow-[0_0_20px_rgba(59,130,246,0.5)] transition-all duration-300 transform hover:-translate-y-1 overflow-hidden"
                 >
                   <Link href="/kontakt">
-                    <MapPin className="mr-2 h-5 w-5" />
-                    Jak dojechać
+                    <span className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]"></span>
+                    <span className="relative z-10 flex items-center">
+                      <MapPin className="mr-2 h-5 w-5 group-hover:scale-110 transition-transform" />
+                      Jak dojechać
+                    </span>
                   </Link>
                 </Button>
               </div>
@@ -119,17 +136,16 @@ export function CtaSection() {
                               return (
                                 <div
                                   key={contact.id}
-                                  className="flex items-center space-x-4 mb-2 ml-2"
+                                  className="flex items-center space-x-4 mb-3 ml-2 group cursor-default"
                                 >
-                                  {' '}
-                                  <div className="bg-blue-500 p-3 rounded-xl flex-shrink-0">
+                                  <div className="bg-blue-600/80 p-3 rounded-xl flex-shrink-0 shadow-lg group-hover:bg-blue-500 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
                                     <IconComponent className="h-6 w-6 text-white" />
                                   </div>
                                   <div>
                                     {contact.type === 'phone' ? (
                                       <a
                                         href={`tel:${stripHtmlTags(contact.value)}`}
-                                        className="text-lg font-semibold text-white hover:text-blue-100 transition-colors"
+                                        className="text-lg font-semibold text-white hover:text-blue-100 transition-colors break-words"
                                       >
                                         <span
                                           dangerouslySetInnerHTML={{
@@ -139,14 +155,14 @@ export function CtaSection() {
                                       </a>
                                     ) : contact.type === 'address' ? (
                                       <address
-                                        className="not-italic text-lg font-semibold text-white"
+                                        className="not-italic text-lg font-semibold text-white break-words"
                                         dangerouslySetInnerHTML={{
                                           __html: sanitizePhoneNumberHtml(contact.value),
                                         }}
                                       />
                                     ) : contact.type === 'hours' ? (
                                       <div
-                                        className="text-lg font-semibold text-white whitespace-pre-line"
+                                        className="text-lg font-semibold text-white whitespace-pre-line break-words"
                                         dangerouslySetInnerHTML={{
                                           __html: sanitizePhoneNumberHtml(contact.value),
                                         }}
@@ -161,15 +177,15 @@ export function CtaSection() {
                   ) : (
                     <>
                       {phoneValue && (
-                        <div className="flex items-start space-x-4">
-                          <div className="bg-blue-500 p-3 rounded-xl flex-shrink-0">
+                        <div className="flex items-start space-x-4 group cursor-default">
+                          <div className="bg-blue-600/80 p-3 rounded-xl flex-shrink-0 shadow-lg group-hover:bg-blue-500 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
                             <Phone className="h-6 w-6 text-white" />
                           </div>
                           <div>
-                            <p className="text-blue-200 text-sm">{phoneLabel}</p>
+                            <p className="text-blue-200 text-sm font-medium">{phoneLabel}</p>
                             <a
                               href={`tel:${stripHtmlTags(phoneValue)}`}
-                              className="text-lg font-semibold text-white hover:text-blue-100 transition-colors"
+                              className="text-xl font-bold text-white hover:text-blue-200 transition-colors inline-block group-hover:translate-x-1 duration-300"
                             >
                               <span
                                 dangerouslySetInnerHTML={{
@@ -181,14 +197,14 @@ export function CtaSection() {
                         </div>
                       )}
                       {addressValue && (
-                        <div className="flex items-start space-x-4">
-                          <div className="bg-blue-500 p-3 rounded-xl flex-shrink-0">
+                        <div className="flex items-start space-x-4 mt-6 group cursor-default">
+                          <div className="bg-blue-600/80 p-3 rounded-xl flex-shrink-0 shadow-lg group-hover:bg-blue-500 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
                             <MapPin className="h-6 w-6 text-white" />
                           </div>
                           <div>
-                            <p className="text-blue-200 text-sm">Adres</p>
+                            <p className="text-blue-200 text-sm font-medium">Adres</p>
                             <address
-                              className="not-italic text-lg font-semibold text-white"
+                              className="not-italic text-lg font-semibold text-white group-hover:text-blue-50 transition-colors break-words"
                               dangerouslySetInnerHTML={{
                                 __html: sanitizePhoneNumberHtml(addressValue),
                               }}
@@ -197,14 +213,14 @@ export function CtaSection() {
                         </div>
                       )}
                       {hoursValue && (
-                        <div className="flex items-start space-x-4">
-                          <div className="bg-blue-500 p-3 rounded-xl flex-shrink-0">
+                        <div className="flex items-start space-x-4 mt-6 group cursor-default">
+                          <div className="bg-blue-600/80 p-3 rounded-xl flex-shrink-0 shadow-lg group-hover:bg-blue-500 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
                             <Clock className="h-6 w-6 text-white" />
                           </div>
                           <div>
-                            <p className="text-blue-200 text-sm">Godziny otwarcia</p>
+                            <p className="text-blue-200 text-sm font-medium">Godziny otwarcia</p>
                             <div
-                              className="text-lg font-semibold text-white whitespace-pre-line"
+                              className="text-lg font-semibold text-white whitespace-pre-line group-hover:text-blue-50 transition-colors break-words"
                               dangerouslySetInnerHTML={{
                                 __html: sanitizePhoneNumberHtml(hoursValue),
                               }}
@@ -215,15 +231,17 @@ export function CtaSection() {
                     </>
                   )}
 
-                  <div className="pt-4 border-t border-white/20">
+                  <div className="pt-4 border-t border-white/20 mt-8">
                     <Button
                       asChild
-                      variant="ghost"
-                      className="text-white hover:text-blue-200 hover:bg-white/10 p-0 h-auto font-semibold"
+                      className="w-full group/btn relative bg-white/10 hover:bg-white/20 backdrop-blur-sm border border-white/20 text-white px-4 py-3 h-auto text-[15px] sm:text-base font-bold rounded-xl shadow-lg hover:shadow-[0_0_20px_rgba(255,255,255,0.2)] transition-all duration-300 transform hover:-translate-y-1 overflow-hidden"
                     >
                       <Link href="/kontakt">
-                        Zobacz pełne informacje kontaktowe
-                        <ArrowRight className="ml-2 h-4 w-4" />
+                        <span className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover/btn:animate-[shimmer_1.5s_infinite]"></span>
+                        <span className="relative z-10 flex flex-wrap items-center justify-center text-center">
+                          Zobacz pełne informacje kontaktowe
+                          <ArrowRight className="ml-2 h-5 w-5 flex-shrink-0 group-hover/btn:translate-x-1 transition-transform" />
+                        </span>
                       </Link>
                     </Button>
                   </div>
