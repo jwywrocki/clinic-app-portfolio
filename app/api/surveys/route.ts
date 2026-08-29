@@ -1,28 +1,10 @@
 import { type NextRequest, NextResponse } from 'next/server';
-import {
-  createSurvey,
-  getAllSurveys,
-  getSurveyById,
-  updateSurvey,
-  deleteSurvey,
-  addQuestionToSurvey,
-  updateQuestion,
-  deleteQuestion,
-  addOptionToQuestion,
-  updateQuestionOption,
-  deleteQuestionOption,
-  submitSurveyResponse,
-  getSurveyResponsesForExport,
-  updateQuestionOrder,
-  updateOptionOrder,
-} from '@/lib/surveys-db';
-import {
-  SurveyData,
-  QuestionData,
-  QuestionOptionData,
-  SurveySubmission,
-} from '@/lib/types/surveys';
+import { createSurveyService } from '@/services';
+import { SurveyData, SurveySubmission } from '@/lib/types/surveys';
 import { requireAuth, isAuthError } from '@/lib/auth';
+import { NotFoundError } from '@/domain';
+
+const surveyService = createSurveyService();
 
 export async function GET(request: NextRequest) {
   try {
@@ -35,11 +17,14 @@ export async function GET(request: NextRequest) {
       const auth = await requireAuth(request);
       if (isAuthError(auth)) return auth;
 
-      const survey = await getSurveyById(id);
-      if (!survey) {
-        return NextResponse.json({ error: 'Survey not found' }, { status: 404 });
+      const surveyResult = await surveyService.getSurveyById(id);
+      if (surveyResult.isFailure()) {
+        if (surveyResult.error instanceof NotFoundError) {
+          return NextResponse.json({ error: 'Survey not found' }, { status: 404 });
+        }
+        throw surveyResult.error;
       }
-      return NextResponse.json(survey);
+      return NextResponse.json(surveyResult.data);
     }
 
     if (exportSurveyId) {
@@ -47,7 +32,11 @@ export async function GET(request: NextRequest) {
       const authExport = await requireAuth(request);
       if (isAuthError(authExport)) return authExport;
 
-      const responses = await getSurveyResponsesForExport(exportSurveyId);
+      const responsesResult = await surveyService.getSurveyResponsesForExport(exportSurveyId);
+      if (responsesResult.isFailure()) {
+        throw responsesResult.error;
+      }
+      const responses = responsesResult.data;
 
       if (responses.length === 0) {
         return NextResponse.json({ message: 'No responses to export' }, { status: 200 });
@@ -72,8 +61,11 @@ export async function GET(request: NextRequest) {
     const authList = await requireAuth(request);
     if (isAuthError(authList)) return authList;
 
-    const surveys = await getAllSurveys();
-    return NextResponse.json(surveys);
+    const surveysResult = await surveyService.getAllSurveys();
+    if (surveysResult.isFailure()) {
+      throw surveysResult.error;
+    }
+    return NextResponse.json(surveysResult.data);
   } catch (error: any) {
     console.error('Error in GET /api/surveys:', error);
     return NextResponse.json({ error: 'Failed to fetch surveys' }, { status: 500 });
@@ -112,9 +104,12 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      const responseId = await submitSurveyResponse(submission);
+      const responseResult = await surveyService.submitSurveyResponse(submission);
+      if (responseResult.isFailure()) {
+        throw responseResult.error;
+      }
       return NextResponse.json(
-        { message: 'Survey submitted successfully', responseId },
+        { message: 'Survey submitted successfully', responseId: responseResult.data },
         { status: 201 }
       );
     } else {
@@ -123,8 +118,11 @@ export async function POST(request: NextRequest) {
       if (isAuthError(auth)) return auth;
 
       const surveyData = body as SurveyData;
-      const newSurvey = await createSurvey(surveyData);
-      return NextResponse.json(newSurvey, { status: 201 });
+      const newSurvey = await surveyService.createSurvey(surveyData);
+      if (newSurvey.isFailure()) {
+        throw newSurvey.error;
+      }
+      return NextResponse.json(newSurvey.data, { status: 201 });
     }
   } catch (error: any) {
     console.error('[API /surveys POST] Error:', error);
@@ -143,8 +141,14 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Survey ID is required' }, { status: 400 });
     }
     const updates = (await request.json()) as Partial<SurveyData>;
-    const updatedSurvey = await updateSurvey(id, updates);
-    return NextResponse.json(updatedSurvey);
+    const updatedSurvey = await surveyService.updateSurvey(id, updates);
+    if (updatedSurvey.isFailure()) {
+      if (updatedSurvey.error instanceof NotFoundError) {
+        return NextResponse.json({ error: 'Survey not found' }, { status: 404 });
+      }
+      throw updatedSurvey.error;
+    }
+    return NextResponse.json(updatedSurvey.data);
   } catch (error: any) {
     console.error('Error in PUT /api/surveys:', error);
     return NextResponse.json({ error: 'Błąd serwera' }, { status: 500 });
@@ -161,7 +165,13 @@ export async function DELETE(request: NextRequest) {
     if (!id) {
       return NextResponse.json({ error: 'Survey ID is required' }, { status: 400 });
     }
-    await deleteSurvey(id);
+    const deleted = await surveyService.deleteSurvey(id);
+    if (deleted.isFailure()) {
+      if (deleted.error instanceof NotFoundError) {
+        return NextResponse.json({ error: 'Survey not found' }, { status: 404 });
+      }
+      throw deleted.error;
+    }
     return NextResponse.json({ message: 'Survey deleted successfully' });
   } catch (error: any) {
     console.error('Error in DELETE /api/surveys:', error);

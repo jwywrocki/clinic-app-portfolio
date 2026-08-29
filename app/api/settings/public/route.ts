@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from 'next/server';
-import { SettingService } from '@/lib/services/settings';
+import { createSettingsService } from '@/services';
 
 const PUBLIC_PREFIXES = ['site_', 'meta_', 'schema_', 'og_', 'twitter_', 'google_'];
 const PUBLIC_KEYS = new Set([
@@ -15,7 +15,9 @@ const PUBLIC_KEYS = new Set([
 ]);
 
 const isPublicKey = (key: string) =>
-  PUBLIC_KEYS.has(key) || PUBLIC_PREFIXES.some((prefix) => key.startsWith(prefix));
+  PUBLIC_KEYS.has(key) || PUBLIC_PREFIXES.some(prefix => key.startsWith(prefix));
+
+const settingsService = createSettingsService();
 
 export async function GET(request: NextRequest) {
   try {
@@ -27,12 +29,18 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ key, value: null }, { status: 404 });
       }
 
-      const setting = await SettingService.getByKey(key);
-      return NextResponse.json(setting || { key, value: null });
+      const settingResult = await settingsService.getByKey(key);
+      if (settingResult.isFailure()) {
+        throw settingResult.error;
+      }
+      return NextResponse.json(settingResult.data || { key, value: null });
     }
 
-    const allSettings = await SettingService.getAll();
-    const publicSettings = (allSettings || []).filter((setting: any) => isPublicKey(setting.key));
+    const settingsResult = await settingsService.getAll();
+    if (settingsResult.isFailure()) {
+      throw settingsResult.error;
+    }
+    const publicSettings = (settingsResult.data || []).filter(setting => isPublicKey(setting.key));
     return NextResponse.json(publicSettings);
   } catch (error) {
     console.error('Error fetching public settings:', error);

@@ -11,13 +11,16 @@ function getPool(): mysql.Pool {
   const connectionTimeoutMs = Number(process.env.DB_CONNECT_TIMEOUT_MS || 5000);
   const sslConfig =
     process.env.DB_SSL === 'true'
-      ? ({ rejectUnauthorized: false } as Record<string, unknown>)
+      ? ({
+          rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED !== 'false',
+        } as Record<string, unknown>)
       : undefined;
 
   const url = process.env.MYSQL_URL || '';
   if (url) {
     pool = mysql.createPool({
       uri: url,
+      ssl: sslConfig,
       connectionLimit: maxConnections,
       idleTimeout: idleTimeoutMs,
       connectTimeout: connectionTimeoutMs,
@@ -107,7 +110,7 @@ function buildMySQLClient(exec: mysql.Pool | mysql.PoolConnection): DBClient {
       )) as any;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const insertedId = ((data as any).id ?? result?.insertId) as unknown;
-      if (insertedId == null) return data as never;
+      if (insertedId === null || insertedId === undefined) return data as never;
       const [after] = await q(`SELECT * FROM \`${table}\` WHERE id = ? LIMIT 1`, [insertedId]);
       const list = after as never[];
       return list[0] as never;

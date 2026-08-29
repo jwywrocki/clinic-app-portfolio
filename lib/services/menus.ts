@@ -1,68 +1,84 @@
-import { getDB } from '@/lib/db';
 import type { MenuItem } from '@/lib/types/menu';
 import type { CreateMenuItemInput, UpdateMenuItemInput } from '@/lib/schemas';
 import { MenuCache } from '@/lib/menu-cache';
+import type { MenuItemRepository } from '@/repositories';
+import { failure, success, type Result, NotFoundError } from '@/domain';
 
 export class MenusService {
-  static async getAll(): Promise<MenuItem[]> {
-    const db = getDB();
-    return db.list<MenuItem>('menu_items', {
+  constructor(private repository: MenuItemRepository) {}
+
+  async getAll(): Promise<Result<MenuItem[]>> {
+    return this.repository.findAll({
       orderBy: { column: 'order_position', ascending: true },
     });
   }
 
-  static async getPublished(): Promise<MenuItem[]> {
-    const db = getDB();
-    return db.findWhere<MenuItem>(
-      'menu_items',
-      { is_published: true },
-      { orderBy: { column: 'order_position', ascending: true } }
-    );
+  async getPublished(): Promise<Result<MenuItem[]>> {
+    return this.repository.findPublished();
   }
 
-  static async getById(id: string): Promise<MenuItem | null> {
-    const db = getDB();
-    return db.getById<MenuItem>('menu_items', id);
+  async getById(id: string): Promise<Result<MenuItem>> {
+    const result = await this.repository.findById(id);
+    if (result.isFailure()) {
+      return failure(result.error);
+    }
+    if (!result.data) {
+      return failure(new NotFoundError('Menu item', id));
+    }
+    return success(result.data);
   }
 
-  static async create(input: CreateMenuItemInput): Promise<MenuItem> {
-    const db = getDB();
-    const now = new Date().toISOString();
-    const item = await db.insert<MenuItem>('menu_items', {
-      ...input,
-      created_at: now,
-      updated_at: now,
-    });
-    MenuCache.clearCache();
-    return item;
+  async create(input: CreateMenuItemInput): Promise<Result<MenuItem>> {
+    const result = await this.repository.create(input);
+    if (!result.isFailure()) {
+      this.clearCache();
+    }
+    return result;
   }
 
-  static async update(id: string, input: UpdateMenuItemInput): Promise<MenuItem> {
-    const db = getDB();
-    const item = await db.updateById<MenuItem>('menu_items', id, {
-      ...input,
-      updated_at: new Date().toISOString(),
-    });
-    MenuCache.clearCache();
-    return item;
+  async update(id: string, input: UpdateMenuItemInput): Promise<Result<MenuItem>> {
+    const existsResult = await this.repository.exists(id);
+    if (existsResult.isFailure()) {
+      return failure(existsResult.error);
+    }
+    if (!existsResult.data) {
+      return failure(new NotFoundError('Menu item', id));
+    }
+
+    const result = await this.repository.update(id, input);
+    if (!result.isFailure()) {
+      this.clearCache();
+    }
+    return result;
   }
 
-  static async delete(id: string): Promise<void> {
-    const db = getDB();
-    await db.deleteById('menu_items', id);
-    MenuCache.clearCache();
+  async delete(id: string): Promise<Result<void>> {
+    const existsResult = await this.repository.exists(id);
+    if (existsResult.isFailure()) {
+      return failure(existsResult.error);
+    }
+    if (!existsResult.data) {
+      return failure(new NotFoundError('Menu item', id));
+    }
+
+    const result = await this.repository.delete(id);
+    if (!result.isFailure()) {
+      this.clearCache();
+    }
+    return result;
   }
 
-  static async reorder(
+  async reorder(
     updates: Array<{ id: string; order_position: number; parent_id?: string | null }>
-  ): Promise<void> {
-    const db = getDB();
-    const now = new Date().toISOString();
-    await Promise.all(
-      updates.map(({ id, order_position, parent_id }) =>
-        db.updateById('menu_items', id, { order_position, parent_id, updated_at: now })
-      )
-    );
+  ): Promise<Result<void>> {
+    const result = await this.repository.updateOrderPositions(updates);
+    if (!result.isFailure()) {
+      this.clearCache();
+    }
+    return result;
+  }
+
+  private clearCache() {
     MenuCache.clearCache();
   }
 }

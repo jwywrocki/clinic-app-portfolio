@@ -1,22 +1,15 @@
-import { getDB } from '@/lib/db';
 import { SpecializationsManagement } from '../../components/SpecializationsManagement';
 import {
   saveSpecializationAction,
   deleteSpecializationAction,
 } from '../../actions/specializations';
 import { Specialization } from '@/lib/types/specializations';
+import { createSpecializationService } from '@/services';
 
 export default async function AdminSpecializationsPage() {
-  const db = getDB();
-
-  let specializations: Specialization[] = [];
-  try {
-    specializations = await db.list<Specialization>('specializations', {
-      orderBy: { column: 'name', ascending: true },
-    });
-  } catch {
-    specializations = [];
-  }
+  const specializationService = createSpecializationService();
+  const listResult = await specializationService.getAll();
+  const specializations: Specialization[] = listResult.isFailure() ? [] : listResult.data;
 
   return (
     <SpecializationsManagement

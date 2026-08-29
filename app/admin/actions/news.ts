@@ -1,28 +1,47 @@
 'use server';
 
-import { getDB } from '@/lib/db';
+import { createNewsService } from '@/services';
+import type { CreateNewsInput, UpdateNewsInput } from '@/lib/schemas';
 import { NewsItem } from '@/lib/types/news';
 import { revalidatePath } from 'next/cache';
+import { isAuthError, requireAuth } from '@/lib/auth';
+
+async function requireAdminSession() {
+  const session = await requireAuth();
+  if (isAuthError(session)) {
+    throw new Error('Brak autoryzacji');
+  }
+  return session;
+}
 
 export async function saveNewsAction(data: Partial<NewsItem>) {
-  const db = getDB();
+  const newsService = createNewsService();
 
-  const now = new Date().toISOString();
-  const payload: Record<string, any> = {
+  const payload = {
     title: data.title || '',
+    slug: data.slug || data.title || '',
     content: data.content || '',
     image_url: data.image_url || null,
     excerpt: data.excerpt || null,
     is_published: !!data.is_published,
-    published_at: data.is_published ? data.published_at || now : null,
-    updated_at: now,
+    published_at: data.published_at ?? null,
+    created_by: data.created_by ?? null,
   };
 
   try {
+    await requireAdminSession();
     if (data.id) {
-      await db.upsert('news', { ...payload, id: data.id });
+      const updatePayload: UpdateNewsInput = payload;
+      const updated = await newsService.update(data.id, updatePayload);
+      if (updated.isFailure()) {
+        return { success: false, error: updated.error.message };
+      }
     } else {
-      await db.upsert('news', { ...payload, created_at: now });
+      const createPayload: CreateNewsInput = payload;
+      const created = await newsService.create(createPayload);
+      if (created.isFailure()) {
+        return { success: false, error: created.error.message };
+      }
     }
     revalidatePath('/admin/news');
     revalidatePath('/');
@@ -35,10 +54,13 @@ export async function saveNewsAction(data: Partial<NewsItem>) {
 }
 
 export async function deleteNewsAction(id: string): Promise<void> {
-  const db = getDB();
+  const newsService = createNewsService();
   try {
-    await db.deleteWhere('news_has_category', { news_id: id });
-    await db.deleteById('news', id);
+    await requireAdminSession();
+    const deleted = await newsService.delete(id);
+    if (deleted.isFailure()) {
+      throw deleted.error;
+    }
     revalidatePath('/admin/news');
     revalidatePath('/');
     revalidatePath('/aktualnosci');

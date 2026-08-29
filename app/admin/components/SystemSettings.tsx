@@ -653,7 +653,7 @@ export function SystemSettings({ onSave }: SystemSettingsProps) {
             />
             <p className="text-xs text-gray-500 mt-1">
               Aby uzyskać link do osadzenia, przejdź do Google Maps, znajdź lokalizację, kliknij
-              "Udostępnij" → "Osadź mapę" i skopiuj URL z iframe src
+              &quot;Udostępnij&quot; → &quot;Osadź mapę&quot; i skopiuj URL z iframe src
             </p>
           </div>
           {settings.google_maps_embed_url && (

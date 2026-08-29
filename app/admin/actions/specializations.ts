@@ -1,35 +1,46 @@
 'use server';
 
-import { getDB } from '@/lib/db';
+import {
+  createSpecializationService,
+  type CreateSpecializationRequest,
+  type UpdateSpecializationRequest,
+} from '@/services';
 import { revalidatePath } from 'next/cache';
 import { Specialization } from '@/lib/types/specializations';
+import { isAuthError, requireAuth } from '@/lib/auth';
+
+async function requireAdminSession() {
+  const session = await requireAuth();
+  if (isAuthError(session)) {
+    throw new Error('Brak autoryzacji');
+  }
+  return session;
+}
 
 export async function saveSpecializationAction(data: Partial<Specialization>) {
-  const db = getDB();
-
-  const payload = {
-    name: data.name?.trim() || '',
-    description: data.description?.trim() || null,
-    updated_at: new Date().toISOString(),
-  };
-
-  if (!payload.name) {
-    return { success: false, error: 'Nazwa specjalizacji jest wymagana' };
-  }
-
-  const existing = await db.findOne<Specialization>('specializations', { name: payload.name });
-  if (existing && existing.id !== data.id) {
-    return { success: false, error: 'Specjalizacja o tej nazwie już istnieje' };
-  }
-
   try {
+    await requireAdminSession();
+    const specializationService = createSpecializationService();
+
     if (data.id) {
-      await db.upsert('specializations', { ...payload, id: data.id });
+      const payload: UpdateSpecializationRequest = {};
+      if (data.name !== undefined) payload.name = data.name;
+      if (data.description !== undefined) payload.description = data.description;
+
+      const updated = await specializationService.update(data.id, payload);
+      if (updated.isFailure()) {
+        return { success: false, error: updated.error.message };
+      }
     } else {
-      await db.upsert('specializations', {
-        ...payload,
-        created_at: new Date().toISOString(),
-      });
+      const payload: CreateSpecializationRequest = {
+        name: data.name ?? '',
+        description: data.description ?? null,
+      };
+
+      const created = await specializationService.create(payload);
+      if (created.isFailure()) {
+        return { success: false, error: created.error.message };
+      }
     }
 
     revalidatePath('/admin/specializations');
@@ -43,18 +54,13 @@ export async function saveSpecializationAction(data: Partial<Specialization>) {
 }
 
 export async function deleteSpecializationAction(id: string) {
-  const db = getDB();
-
   try {
-    const linkedDoctors = await db.findWhere('doctors', { specialization: id });
-    if (linkedDoctors.length > 0) {
-      return {
-        success: false,
-        error: 'Nie można usunąć specjalizacji przypisanej do lekarza',
-      };
+    await requireAdminSession();
+    const specializationService = createSpecializationService();
+    const deleted = await specializationService.delete(id);
+    if (deleted.isFailure()) {
+      return { success: false, error: deleted.error.message };
     }
-
-    await db.deleteById('specializations', id);
 
     revalidatePath('/admin/specializations');
     revalidatePath('/admin/doctors');

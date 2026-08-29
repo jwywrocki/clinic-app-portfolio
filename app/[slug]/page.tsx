@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
-import { PagesService } from '@/lib/services/pages';
-import { getPublishedSurveyForPage } from '@/lib/surveys-db';
+import { createPagesService } from '@/services';
+import { NotFoundError } from '@/domain';
+import { createSurveyService } from '@/services';
 import { LayoutWrapper } from '@/components/layout/layout-wrapper';
 import { AnimatedSection } from '@/components/ui/animated-section';
 import { SurveyWidget } from '@/components/survey-widget';
@@ -9,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Calendar } from 'lucide-react';
 import Link from 'next/link';
+import { sanitizeHtml } from '@/lib/html-sanitizer';
 
 interface PageProps {
   params: Promise<{
@@ -18,6 +20,8 @@ interface PageProps {
 
 export default async function DynamicPage({ params }: PageProps) {
   const { slug } = await params;
+  const pagesService = createPagesService();
+  const surveyService = createSurveyService();
 
   const systemRoutes = [
     'login',
@@ -33,17 +37,24 @@ export default async function DynamicPage({ params }: PageProps) {
     notFound();
   }
 
-  const page = await PagesService.getPublishedBySlug(slug);
-
-  if (!page) {
-    notFound();
+  const pageResult = await pagesService.getPublishedBySlug(slug);
+  if (pageResult.isFailure()) {
+    if (pageResult.error instanceof NotFoundError) {
+      notFound();
+    }
+    throw pageResult.error;
   }
+
+  const page = pageResult.data;
 
   // Pre-fetch survey data server-side if page has survey
   let surveyData = null;
   if (page.survey_id) {
     try {
-      surveyData = await getPublishedSurveyForPage(page.survey_id);
+      const surveyResult = await surveyService.getPublishedSurveyForPage(page.survey_id);
+      if (!surveyResult.isFailure()) {
+        surveyData = surveyResult.data;
+      }
     } catch (error) {
       console.error('Error pre-fetching survey:', error);
     }
@@ -68,9 +79,10 @@ export default async function DynamicPage({ params }: PageProps) {
                   <div
                     className="text-xl text-gray-600 max-w-3xl mx-auto prose prose-xl max-w-none text-center"
                     dangerouslySetInnerHTML={{
-                      __html:
+                      __html: sanitizeHtml(
                         page.content ||
-                        'W SPZOZ GOZ Łopuszno pracuje zespół wykwalifikowanych i doświadczonych specjalistów, gotowych nieść pomoc i zapewnić najlepszą opiekę medyczną.',
+                          'W SPZOZ GOZ Łopuszno pracuje zespół wykwalifikowanych i doświadczonych specjalistów, gotowych nieść pomoc i zapewnić najlepszą opiekę medyczną.'
+                      ),
                     }}
                   />
                 </div>
@@ -144,7 +156,7 @@ export default async function DynamicPage({ params }: PageProps) {
                   <div className="bg-white/80 backdrop-blur-md border border-white/20 rounded-2xl shadow-[0_10px_40px_-15px_rgba(59,130,246,0.15)] p-8">
                     <div
                       className="prose prose-lg max-w-none"
-                      dangerouslySetInnerHTML={{ __html: page.content }}
+                      dangerouslySetInnerHTML={{ __html: sanitizeHtml(page.content) }}
                     />
                   </div>
                 </AnimatedSection>
@@ -167,20 +179,23 @@ export default async function DynamicPage({ params }: PageProps) {
 
 export async function generateMetadata({ params }: PageProps) {
   const { slug } = await params;
+  const pagesService = createPagesService();
 
   try {
-    const page = await PagesService.getPublishedBySlug(slug);
-
-    if (!page) {
-      return {
-        title: 'Strona nie znaleziona - GOZ Łopuszno',
-        description: 'Strona, której szukasz, nie została znaleziona.',
-      };
+    const pageResult = await pagesService.getPublishedBySlug(slug);
+    if (pageResult.isFailure()) {
+      if (pageResult.error instanceof NotFoundError) {
+        return {
+          title: 'Strona nie znaleziona - GOZ Łopuszno',
+          description: 'Strona, której szukasz, nie została znaleziona.',
+        };
+      }
+      throw pageResult.error;
     }
 
     return {
-      title: `${page.title} - GOZ Łopuszno`,
-      description: page.meta_description || page.title,
+      title: `${pageResult.data.title} - GOZ Łopuszno`,
+      description: pageResult.data.meta_description || pageResult.data.title,
     };
   } catch (error) {
     return {

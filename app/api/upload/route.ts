@@ -4,8 +4,9 @@ import { join, extname } from 'path';
 import { stat, mkdir } from 'fs/promises';
 import { requireAuth, isAuthError } from '@/lib/auth';
 
-// Allowed image extensions and their magic bytes signatures
-const ALLOWED_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.ico']);
+// SVG is intentionally excluded because active content served from the same
+// origin could execute in an authenticated user's browser.
+const ALLOWED_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.ico']);
 
 const MAGIC_BYTES: Array<{ ext: string[]; bytes: number[]; offset?: number }> = [
   { ext: ['.jpg', '.jpeg'], bytes: [0xff, 0xd8, 0xff] },
@@ -16,12 +17,6 @@ const MAGIC_BYTES: Array<{ ext: string[]; bytes: number[]; offset?: number }> = 
 ];
 
 function validateMagicBytes(buffer: Buffer, extension: string): boolean {
-  // SVG is text-based, validate differently
-  if (extension === '.svg') {
-    const text = buffer.toString('utf-8', 0, Math.min(buffer.length, 512)).trim();
-    return text.startsWith('<?xml') || text.startsWith('<svg');
-  }
-
   for (const sig of MAGIC_BYTES) {
     if (!sig.ext.includes(extension)) continue;
     const offset = sig.offset ?? 0;

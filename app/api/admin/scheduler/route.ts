@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDB } from '@/lib/db';
-import { SettingService } from '@/lib/services/settings';
+import { createSettingsService, createBackupService } from '@/services';
 import { ensureSchedulerInitialized } from '@/lib/scheduler-init';
 import { handleAutoBackup, handleBackupCleanup, calculateNextBackupTime } from '@/lib/backup-utils';
 import { requireRole, isAuthError } from '@/lib/auth';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
+
+const settingsService = createSettingsService();
 
 async function authenticateSchedulerRequest(request: NextRequest): Promise<NextResponse | null> {
   const session = await requireRole(request, 'admin');
@@ -73,26 +74,31 @@ export async function GET(request: NextRequest) {
   await ensureSchedulerInitialized();
 
   try {
-    const db = getDB();
-    const settingsMap = await SettingService.getAllAsMap();
+    const backupService = createBackupService();
+    const settingsResult = await settingsService.getAllAsMap();
+    if (settingsResult.isFailure()) {
+      throw settingsResult.error;
+    }
+    const settingsMap = settingsResult.data;
 
-    const autoBackups = await db.findWhere<any>(
-      'database_backups',
-      { backup_type: 'automatic' },
-      { orderBy: { column: 'created_at', ascending: false }, limit: 1 }
-    );
-    const lastBackup = autoBackups.length > 0 ? autoBackups[0] : null;
+    const lastBackupResult = await backupService.findLatestByType('automatic');
+    if (lastBackupResult.isFailure()) {
+      throw lastBackupResult.error;
+    }
+    const lastBackup = lastBackupResult.data;
 
     const frequency = settingsMap.db_backup_frequency || 'daily';
-    const nextBackup = calculateNextBackupTime(lastBackup?.created_at, frequency);
+    const nextBackup = calculateNextBackupTime(lastBackup?.created_at ?? null, frequency);
 
     const retentionDays = parseInt(settingsMap.db_backup_retention_days || '30');
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
 
-    const allBackups = await db.list<any>('database_backups', {
-      orderBy: { column: 'created_at', ascending: false },
-    });
+    const allBackupsResult = await backupService.listAll();
+    if (allBackupsResult.isFailure()) {
+      throw allBackupsResult.error;
+    }
+    const allBackups = allBackupsResult.data;
 
     const oldBackups = allBackups.filter(
       (b: any) => b.status === 'completed' && new Date(b.created_at) < cutoffDate

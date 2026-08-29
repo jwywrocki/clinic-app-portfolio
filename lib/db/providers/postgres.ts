@@ -11,7 +11,10 @@ function getPool(): Pool {
   const connectionTimeoutMs = Number(process.env.DB_CONNECT_TIMEOUT_MS || 5000);
 
   const url = process.env.DATABASE_URL || process.env.POSTGRES_URL || '';
-  const sslConfig = process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : undefined;
+  const sslConfig =
+    process.env.DB_SSL === 'true'
+      ? { rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED !== 'false' }
+      : undefined;
 
   if (url) {
     pool = new Pool({

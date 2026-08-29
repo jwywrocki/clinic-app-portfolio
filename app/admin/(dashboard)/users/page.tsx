@@ -1,18 +1,22 @@
-import { getDB } from '@/lib/db';
-import { UserService } from '@/lib/services/users';
+import { createUserService } from '@/services';
 import { UsersManagement } from '../../components/UsersManagement';
 import { saveUserAction, deleteUserAction } from '../../actions/users';
 
 export default async function AdminUsersPage() {
-  const db = getDB();
-
-  const users = await UserService.getAllUsersWithRoles();
-  const roles = await db.findWhere('roles', {});
+  const userService = createUserService();
+  const usersResult = await userService.getAllUsersWithRoles();
+  if (usersResult.isFailure()) {
+    throw usersResult.error;
+  }
+  const rolesResult = await userService.getAllRoles();
+  if (rolesResult.isFailure()) {
+    throw rolesResult.error;
+  }
 
   return (
     <UsersManagement
-      users={users as any}
-      roles={roles as any}
+      users={usersResult.data}
+      roles={rolesResult.data}
       onSave={saveUserAction}
       onDelete={deleteUserAction}
       currentUser={null}

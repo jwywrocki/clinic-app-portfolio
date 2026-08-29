@@ -1,18 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDB } from '@/lib/db';
 import fs from 'fs/promises';
 import path from 'path';
 import { requireRole, isAuthError } from '@/lib/auth';
+import { createBackupService } from '@/services';
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   const auth = await requireRole(request, 'admin');
   if (isAuthError(auth)) return auth;
 
   try {
-    const db = getDB();
+    const backupService = createBackupService();
     const { id: backupId } = params;
 
-    const backup = await db.findOne<any>('database_backups', { id: backupId, status: 'completed' });
+    const backupResult = await backupService.findCompletedById(backupId);
+    if (backupResult.isFailure()) {
+      throw backupResult.error;
+    }
+
+    const backup = backupResult.data;
 
     if (!backup) {
       return NextResponse.json(

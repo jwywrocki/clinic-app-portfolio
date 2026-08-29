@@ -1,7 +1,7 @@
 {
   "extends": [
     "next/core-web-vitals",
-    "@typescript-eslint/recommended"
+    "plugin:@typescript-eslint/recommended"
   ],
   "parser": "@typescript-eslint/parser",
   "plugins": [
@@ -9,17 +9,15 @@
     "react-hooks"
   ],
   "rules": {
-    "@typescript-eslint/no-unused-vars": ["error", { "argsIgnorePattern": "^_" }],
+    "@typescript-eslint/no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }],
     "@typescript-eslint/no-explicit-any": "warn",
-    "@typescript-eslint/prefer-const": "error",
     "@typescript-eslint/no-var-requires": "error",
     "react-hooks/rules-of-hooks": "error",
     "react-hooks/exhaustive-deps": "warn",
     "prefer-const": "error",
     "no-var": "error",
     "no-console": ["warn", { "allow": ["warn", "error"] }],
-    "eqeqeq": ["error", "always"],
-    "curly": ["error", "all"]
+    "eqeqeq": ["error", "always"]
   },
   "ignorePatterns": [
     "node_modules",

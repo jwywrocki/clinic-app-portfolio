@@ -1,16 +1,22 @@
 import { type NextRequest, NextResponse } from 'next/server';
-import { MenusService } from '@/lib/services/menus';
+import { createMenusService } from '@/services';
 import { UpdateMenuItemSchema, formatZodError } from '@/lib/schemas';
 import { requireAuth, isAuthError } from '@/lib/auth';
+import { NotFoundError } from '@/domain';
+
+const menusService = createMenusService();
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
-    const data = await MenusService.getById(id);
-    if (!data) {
-      return NextResponse.json({ error: 'Nie znaleziono' }, { status: 404 });
+    const data = await menusService.getById(id);
+    if (data.isFailure()) {
+      if (data.error instanceof NotFoundError) {
+        return NextResponse.json({ error: 'Nie znaleziono' }, { status: 404 });
+      }
+      throw data.error;
     }
-    return NextResponse.json(data);
+    return NextResponse.json(data.data);
   } catch (e) {
     console.error('GET /api/menu_items/:id error', e);
     return NextResponse.json({ error: 'Błąd serwera' }, { status: 500 });
@@ -28,21 +34,36 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (!parsed.success) {
       return NextResponse.json({ error: formatZodError(parsed.error.issues) }, { status: 400 });
     }
-    const data = await MenusService.update(id, parsed.data);
-    return NextResponse.json(data);
+    const data = await menusService.update(id, parsed.data);
+    if (data.isFailure()) {
+      if (data.error instanceof NotFoundError) {
+        return NextResponse.json({ error: 'Nie znaleziono' }, { status: 404 });
+      }
+      throw data.error;
+    }
+    return NextResponse.json(data.data);
   } catch (e) {
     console.error('PATCH /api/menu_items/:id error', e);
     return NextResponse.json({ error: 'Błąd serwera' }, { status: 500 });
   }
 }
 
-export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   const auth = await requireAuth(request);
   if (isAuthError(auth)) return auth;
 
   try {
     const { id } = await params;
-    await MenusService.delete(id);
+    const deleted = await menusService.delete(id);
+    if (deleted.isFailure()) {
+      if (deleted.error instanceof NotFoundError) {
+        return NextResponse.json({ error: 'Nie znaleziono' }, { status: 404 });
+      }
+      throw deleted.error;
+    }
     return NextResponse.json({ message: 'Menu item deleted successfully' });
   } catch (e) {
     console.error('DELETE /api/menu_items/:id error', e);

@@ -43,6 +43,85 @@ interface ContactManagementProps {
   isSaving?: boolean;
 }
 
+function SortableContactDetail({
+  detail,
+  onEdit,
+  onDelete,
+}: {
+  detail: ContactDetail;
+  onEdit: (value: string) => void;
+  onDelete: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: detail.id,
+  });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  const getContactTypeLabel = (type: string) => {
+    switch (type) {
+      case 'phone':
+        return 'Telefon';
+      case 'email':
+        return 'Email';
+      case 'address':
+        return 'Adres';
+      case 'hours':
+        return 'Godziny';
+      case 'emergency_contact':
+        return 'Kontakt awaryjny';
+      default:
+        return type;
+    }
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`p-3 border rounded bg-white ${isDragging ? 'shadow-lg' : ''}`}
+    >
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center space-x-2">
+          <div
+            className="cursor-grab active:cursor-grabbing p-1 hover:bg-gray-100 rounded"
+            {...attributes}
+            {...listeners}
+          >
+            <GripVertical className="h-4 w-4 text-gray-400" />
+          </div>
+          <Label>{getContactTypeLabel(detail.type)}</Label>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={onDelete}
+          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+          title="Usuń szczegół kontaktowy"
+        >
+          <MinusCircle className="h-4 w-4" />
+        </Button>
+      </div>
+      {detail.type === 'phone' || detail.type === 'email' ? (
+        <Input
+          value={detail.value}
+          onChange={e => onEdit(e.target.value)}
+          placeholder={detail.type === 'phone' ? 'Numer telefonu' : 'Adres email'}
+          key={`input-${detail.id}`}
+        />
+      ) : detail.type === 'address' ||
+        detail.type === 'hours' ||
+        detail.type === 'emergency_contact' ? (
+        <RichTextEditor value={detail.value} onChange={onEdit} key={`editor-${detail.id}`} />
+      ) : null}
+    </div>
+  );
+}
+
 export function ContactManagement({
   contactGroups,
   onSaveGroup,
@@ -185,90 +264,6 @@ export function ContactManagement({
       });
     },
     [editingGroup?.id]
-  );
-
-  const SortableContactDetail = useCallback(
-    ({
-      detail,
-      editingGroupId,
-      onEdit,
-      onDelete,
-    }: {
-      detail: ContactDetail;
-      editingGroupId: string;
-      onEdit: (value: string) => void;
-      onDelete: () => void;
-    }) => {
-      const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-        id: detail.id,
-      });
-
-      const style = {
-        transform: CSS.Transform.toString(transform),
-        transition,
-        opacity: isDragging ? 0.5 : 1,
-      };
-
-      const getContactTypeLabel = (type: string) => {
-        switch (type) {
-          case 'phone':
-            return 'Telefon';
-          case 'email':
-            return 'Email';
-          case 'address':
-            return 'Adres';
-          case 'hours':
-            return 'Godziny';
-          case 'emergency_contact':
-            return 'Kontakt awaryjny';
-          default:
-            return type;
-        }
-      };
-
-      return (
-        <div
-          ref={setNodeRef}
-          style={style}
-          className={`p-3 border rounded bg-white ${isDragging ? 'shadow-lg' : ''}`}
-        >
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center space-x-2">
-              <div
-                className="cursor-grab active:cursor-grabbing p-1 hover:bg-gray-100 rounded"
-                {...attributes}
-                {...listeners}
-              >
-                <GripVertical className="h-4 w-4 text-gray-400" />
-              </div>
-              <Label>{getContactTypeLabel(detail.type)}</Label>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onDelete}
-              className="text-red-600 hover:text-red-700 hover:bg-red-50"
-              title="Usuń szczegół kontaktowy"
-            >
-              <MinusCircle className="h-4 w-4" />
-            </Button>
-          </div>
-          {detail.type === 'phone' || detail.type === 'email' ? (
-            <Input
-              value={detail.value}
-              onChange={e => onEdit(e.target.value)}
-              placeholder={detail.type === 'phone' ? 'Numer telefonu' : 'Adres email'}
-              key={`input-${detail.id}`}
-            />
-          ) : detail.type === 'address' ||
-            detail.type === 'hours' ||
-            detail.type === 'emergency_contact' ? (
-            <RichTextEditor value={detail.value} onChange={onEdit} key={`editor-${detail.id}`} />
-          ) : null}
-        </div>
-      );
-    },
-    []
   );
 
   function SortableGroupCard({
@@ -483,7 +478,6 @@ export function ContactManagement({
                             <SortableContactDetail
                               key={`detail-${detail.id}`}
                               detail={detail}
-                              editingGroupId={editingGroup.id}
                               onEdit={onEdit}
                               onDelete={onDelete}
                             />

@@ -1,4 +1,3 @@
-import { getDB } from '@/lib/db';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -9,40 +8,20 @@ import { AnimatedSection } from '@/components/ui/animated-section';
 import { AnimatedGroup } from '@/components/ui/animated-group';
 import { FadeIn, SlideIn } from '@/components/ui/animation-helpers';
 import { SkipLink } from '@/components/ui/skip-link';
-
-interface PageContent {
-  id: string;
-  title: string;
-  content: string;
-  slug: string;
-  meta_description?: string;
-}
-
-interface TeamMember {
-  id: string;
-  first_name: string;
-  last_name: string;
-  specialization: string;
-  bio?: string;
-}
+import { sanitizeHtml } from '@/lib/html-sanitizer';
+import { createDoctorService, createPagesService } from '@/services';
+import type { Page } from '@/lib/types/pages';
+import type { Doctor } from '@/lib/types/doctors';
 
 export default async function AboutPage() {
-  const db = getDB();
+  const pagesService = createPagesService();
+  const doctorService = createDoctorService();
 
-  // Fetch page data on the server
-  const pages = await db.findWhere<PageContent>('pages', { slug: 'o-nas', is_published: true });
-  const pageContent = pages && pages.length > 0 ? pages[0] : null;
+  const pageResult = await pagesService.getPublishedBySlug('o-nas');
+  const pageContent: Page | null = pageResult.isFailure() ? null : pageResult.data;
 
-  // Fetch team members on the server (just for completeness, though they aren't used in UI directly here?)
-  // In Original Code, doctors were fetched but not rendered. We'll fetch them anyway.
-  const teamMembers = await db.findWhere<TeamMember>(
-    'doctors',
-    { is_active: true },
-    {
-      limit: 3,
-      orderBy: { column: 'order_position', ascending: true },
-    }
-  );
+  const doctorsResult = await doctorService.getActiveDoctors();
+  const teamMembers: Doctor[] = doctorsResult.isFailure() ? [] : doctorsResult.data.slice(0, 3);
 
   const values = [
     {
@@ -99,9 +78,10 @@ export default async function AboutPage() {
                 <div
                   className="text-xl text-gray-600 leading-relaxed mb-8 prose prose-xl max-w-none"
                   dangerouslySetInnerHTML={{
-                    __html:
+                    __html: sanitizeHtml(
                       pageContent?.content ||
-                      'Jesteśmy Samodzielnym Publicznym Zakładem Opieki Zdrowotnej, Gminnym Ośrodkiem Zdrowia w Łopusznie. Naszą misją jest zapewnienie kompleksowej i profesjonalnej opieki medycznej dla mieszkańców gminy Łopuszno i okolic.',
+                        'Jesteśmy Samodzielnym Publicznym Zakładem Opieki Zdrowotnej, Gminnym Ośrodkiem Zdrowia w Łopusznie. Naszą misją jest zapewnienie kompleksowej i profesjonalnej opieki medycznej dla mieszkańców gminy Łopuszno i okolic.'
+                    ),
                   }}
                 />
                 <Button

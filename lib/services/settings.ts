@@ -1,77 +1,78 @@
-import { getDB } from '@/lib/db';
 import { safeEncryptPassword } from '@/lib/crypto';
+import type { SiteSetting } from '@/lib/types/settings';
+import type { SettingsRepository } from '@/repositories';
+import { failure, success, type Result } from '@/domain';
 
-export class SettingService {
-  static async getAll() {
-    const db = getDB();
-    return await db.list<any>('site_settings', { orderBy: { column: 'key', ascending: true } });
+export interface SettingUpsertInput {
+  key: string;
+  value: string | null;
+  description?: string | null;
+}
+
+export class SettingsService {
+  constructor(private repository: SettingsRepository) {}
+
+  async getAll(): Promise<Result<SiteSetting[]>> {
+    return this.repository.findAll({ orderBy: { column: 'key', ascending: true } });
   }
 
-  static async getAllAsMap(): Promise<Record<string, string>> {
-    const settings = await this.getAll();
-    return (settings || []).reduce((acc: Record<string, string>, s: any) => {
-      acc[s.key] = s.value;
-      return acc;
-    }, {});
+  async getAllAsMap(): Promise<Result<Record<string, string>>> {
+    return this.repository.listAllAsMap();
   }
 
-  static async getByKey(key: string) {
-    const db = getDB();
-    return await db.findOne<any>('site_settings', { key });
+  async getByKey(key: string): Promise<Result<SiteSetting | null>> {
+    return this.repository.findByKey(key);
   }
 
-  static async upsert(key: string, value: string, userId?: string, description?: string) {
-    const db = getDB();
-
-    let processedValue = value;
-    if (key === 'email_smtp_password' && value) {
-      processedValue = safeEncryptPassword(value);
-    }
-
-    const existingSetting = await db.findOne<any>('site_settings', { key });
-
-    if (existingSetting) {
-      return await db.updateById('site_settings', existingSetting.id, {
-        value: processedValue,
-        description: description !== undefined ? description : existingSetting.description,
-        updated_by: userId || null,
-        updated_at: new Date().toISOString(),
-      });
-    } else {
-      return await db.insert('site_settings', {
-        key,
-        value: processedValue,
-        description,
-        created_by: userId || null,
-        updated_by: userId || null,
-      });
-    }
+  async upsert(
+    key: string,
+    value: string | null,
+    userId?: string | null,
+    description?: string | null
+  ): Promise<Result<SiteSetting>> {
+    const processedValue = this.prepareSettingValue(key, value);
+    return this.repository.upsertByKey({
+      key,
+      value: processedValue,
+      description,
+      updatedBy: userId ?? null,
+    });
   }
 
-  static async bulkUpsert(
-    settings: { key: string; value: string; description?: string }[],
-    userId?: string
-  ) {
-    const results = [];
+  async bulkUpsert(
+    settings: SettingUpsertInput[],
+    userId?: string | null
+  ): Promise<Result<SiteSetting[]>> {
+    const results: SiteSetting[] = [];
+
     for (const setting of settings) {
       if (!setting.key) continue;
-      try {
-        const result = await this.upsert(setting.key, setting.value, userId, setting.description);
-        results.push(result);
-      } catch (error) {
-        console.error(`Error processing setting ${setting.key}:`, error);
+
+      const updateResult = await this.upsert(
+        setting.key,
+        setting.value,
+        userId ?? null,
+        setting.description
+      );
+
+      if (updateResult.isFailure()) {
+        return failure(updateResult.error);
       }
+
+      results.push(updateResult.data);
     }
-    return results;
+
+    return success(results);
   }
 
-  static async deleteByKey(key: string) {
-    const db = getDB();
-    const setting = await db.findOne<any>('site_settings', { key });
-    if (setting) {
-      await db.deleteById('site_settings', setting.id);
-      return true;
+  async deleteByKey(key: string): Promise<Result<boolean>> {
+    return this.repository.deleteByKey(key);
+  }
+
+  private prepareSettingValue(key: string, value: string | null): string | null {
+    if (key === 'email_smtp_password' && value) {
+      return safeEncryptPassword(value);
     }
-    return false;
+    return value;
   }
 }

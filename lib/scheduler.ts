@@ -1,13 +1,13 @@
 import cron from 'node-cron';
-import { getDB } from '@/lib/db';
+import { createSettingsService } from '@/services';
 
 const log = (message: string) => {
   console.log(`[SCHEDULER ${new Date().toISOString()}] ${message}`);
 };
 
 let isInitialized = false;
-let runningTasks = new Set<string>();
-let activeTasks = new Map<string, any>();
+const runningTasks = new Set<string>();
+const activeTasks = new Map<string, any>();
 
 export async function initializeScheduler() {
   if (isInitialized) {
@@ -38,17 +38,12 @@ export async function initializeScheduler() {
 
 async function getBackupSettings() {
   try {
-    const db = getDB();
-    const settings = await db.list<any>('site_settings');
-
-    const settingsMap =
-      settings?.reduce(
-        (acc: Record<string, string>, setting: any) => {
-          acc[setting.key] = setting.value;
-          return acc;
-        },
-        {} as Record<string, string>
-      ) || {};
+    const settingsService = createSettingsService();
+    const settingsResult = await settingsService.getAllAsMap();
+    if (settingsResult.isFailure()) {
+      throw settingsResult.error;
+    }
+    const settingsMap = settingsResult.data;
 
     return {
       db_backup_enabled: settingsMap.db_backup_enabled === 'true',

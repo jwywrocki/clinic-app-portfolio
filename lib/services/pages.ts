@@ -1,108 +1,158 @@
-import { getDB } from '@/lib/db';
 import type { Page } from '@/lib/types/pages';
 import type { CreatePageInput, UpdatePageInput } from '@/lib/schemas';
-
-interface PageSpecializationLink {
-  id: string;
-  page_id: string;
-  specialization_id: string;
-}
+import type { PageRepository, PageSpecializationRepository } from '@/repositories';
+import { failure, success, type Result, NotFoundError } from '@/domain';
 
 export class PagesService {
-  private static async withSpecializations(page: Page): Promise<Page> {
-    const db = getDB();
-    try {
-      const links = await db.findWhere<PageSpecializationLink>('page_has_specializations', {
-        page_id: page.id,
-      });
-      return {
-        ...page,
-        specialization_ids: links.map(link => link.specialization_id),
-      };
-    } catch {
-      return {
-        ...page,
-        specialization_ids: [],
-      };
-    }
-  }
+  constructor(
+    private pageRepository: PageRepository,
+    private specializationRepository: PageSpecializationRepository
+  ) {}
 
-  private static async syncPageSpecializations(pageId: string, specializationIds: string[]) {
-    const db = getDB();
-    try {
-      const existing = await db.findWhere<PageSpecializationLink>('page_has_specializations', {
-        page_id: pageId,
-      });
-      for (const link of existing) {
-        await db.deleteById('page_has_specializations', link.id);
-      }
-
-      if (specializationIds.length === 0) return;
-
-      const rows = specializationIds.map(specializationId => ({
-        page_id: pageId,
-        specialization_id: specializationId,
-      }));
-
-      await db.insertMany('page_has_specializations', rows);
-    } catch {
-      // Compatibility fallback before migration.
-    }
-  }
-
-  static async getAll(): Promise<Page[]> {
-    const db = getDB();
-    const pages = await db.list<Page>('pages', {
+  async getAll(): Promise<Result<Page[]>> {
+    const pagesResult = await this.pageRepository.findAll({
       orderBy: { column: 'created_at', ascending: false },
     });
-    return Promise.all(pages.map(page => this.withSpecializations(page)));
-  }
 
-  static async getById(id: string): Promise<Page | null> {
-    const db = getDB();
-    const page = await db.getById<Page>('pages', id);
-    if (!page) return null;
-    return this.withSpecializations(page);
-  }
-
-  static async getBySlug(slug: string): Promise<Page | null> {
-    const db = getDB();
-    const page = await db.findOne<Page>('pages', { slug });
-    if (!page) return null;
-    return this.withSpecializations(page);
-  }
-
-  static async getPublishedBySlug(slug: string): Promise<Page | null> {
-    const db = getDB();
-    const page = await db.findOne<Page>('pages', { slug, is_published: true });
-    if (!page) return null;
-    return this.withSpecializations(page);
-  }
-
-  static async create(input: CreatePageInput): Promise<Page> {
-    const db = getDB();
-    const now = new Date().toISOString();
-    const { specialization_ids = [], ...pageData } = input;
-    const page = await db.insert<Page>('pages', { ...pageData, created_at: now, updated_at: now });
-    await this.syncPageSpecializations(page.id, specialization_ids);
-    return this.withSpecializations(page);
-  }
-
-  static async update(id: string, input: UpdatePageInput): Promise<Page> {
-    const db = getDB();
-    const { specialization_ids, ...pageData } = input;
-    const page = await db.updateById<Page>('pages', id, {
-      ...pageData,
-      updated_at: new Date().toISOString(),
-    });
-    if (specialization_ids) {
-      await this.syncPageSpecializations(id, specialization_ids);
+    if (pagesResult.isFailure()) {
+      return failure(pagesResult.error);
     }
-    return this.withSpecializations(page);
+
+    const pages = await Promise.all(pagesResult.data.map(page => this.attachSpecializations(page)));
+
+    return success(pages);
   }
 
-  static async delete(id: string): Promise<void> {
-    const db = getDB();
-    return db.deleteById('pages', id);
+  async getAllByUpdatedAt(): Promise<Result<Page[]>> {
+    const pagesResult = await this.pageRepository.findAll({
+      orderBy: { column: 'updated_at', ascending: false },
+    });
+
+    if (pagesResult.isFailure()) {
+      return failure(pagesResult.error);
+    }
+
+    const pages = await Promise.all(pagesResult.data.map(page => this.attachSpecializations(page)));
+
+    return success(pages);
+  }
+
+  async getById(id: string): Promise<Result<Page>> {
+    const pageResult = await this.pageRepository.findById(id);
+    if (pageResult.isFailure()) {
+      return failure(pageResult.error);
+    }
+
+    if (!pageResult.data) {
+      return failure(new NotFoundError('Page', id));
+    }
+
+    const page = await this.attachSpecializations(pageResult.data);
+    return success(page);
+  }
+
+  async getBySlug(slug: string): Promise<Result<Page>> {
+    const pageResult = await this.pageRepository.findBySlug(slug);
+    if (pageResult.isFailure()) {
+      return failure(pageResult.error);
+    }
+
+    if (!pageResult.data) {
+      return failure(new NotFoundError('Page', slug));
+    }
+
+    const page = await this.attachSpecializations(pageResult.data);
+    return success(page);
+  }
+
+  async getPublished(): Promise<Result<Page[]>> {
+    const pagesResult = await this.pageRepository.findPublished();
+    if (pagesResult.isFailure()) {
+      return failure(pagesResult.error);
+    }
+
+    const pages = await Promise.all(pagesResult.data.map(page => this.attachSpecializations(page)));
+
+    return success(pages);
+  }
+
+  async getPublishedBySlug(slug: string): Promise<Result<Page>> {
+    const pageResult = await this.getBySlug(slug);
+    if (pageResult.isFailure()) {
+      return pageResult;
+    }
+
+    if (!pageResult.data.is_published) {
+      return failure(new NotFoundError('Page', slug));
+    }
+
+    return pageResult;
+  }
+
+  async create(input: CreatePageInput): Promise<Result<Page>> {
+    const { specialization_ids = [], ...pageData } = input;
+    const createResult = await this.pageRepository.create(pageData);
+    if (createResult.isFailure()) {
+      return failure(createResult.error);
+    }
+
+    await this.syncSpecializations(createResult.data.id, specialization_ids);
+    const page = await this.attachSpecializations(createResult.data);
+    return success(page);
+  }
+
+  async update(id: string, input: UpdatePageInput): Promise<Result<Page>> {
+    const existsResult = await this.pageRepository.exists(id);
+    if (existsResult.isFailure()) {
+      return failure(existsResult.error);
+    }
+    if (!existsResult.data) {
+      return failure(new NotFoundError('Page', id));
+    }
+
+    const { specialization_ids, ...pageData } = input;
+    const updateResult = await this.pageRepository.update(id, pageData);
+    if (updateResult.isFailure()) {
+      return failure(updateResult.error);
+    }
+
+    if (specialization_ids) {
+      await this.syncSpecializations(id, specialization_ids);
+    }
+
+    const page = await this.attachSpecializations(updateResult.data);
+    return success(page);
+  }
+
+  async delete(id: string): Promise<Result<void>> {
+    const existsResult = await this.pageRepository.exists(id);
+    if (existsResult.isFailure()) {
+      return failure(existsResult.error);
+    }
+    if (!existsResult.data) {
+      return failure(new NotFoundError('Page', id));
+    }
+
+    await this.specializationRepository.deleteByPageId(id);
+    return this.pageRepository.delete(id);
+  }
+
+  private async attachSpecializations(page: Page): Promise<Page> {
+    const linksResult = await this.specializationRepository.listByPageId(page.id);
+    if (linksResult.isFailure()) {
+      return { ...page, specialization_ids: [] };
+    }
+
+    return {
+      ...page,
+      specialization_ids: linksResult.data.map(link => link.specialization_id),
+    };
+  }
+
+  private async syncSpecializations(pageId: string, specializationIds: string[]) {
+    const result = await this.specializationRepository.replaceLinks(pageId, specializationIds);
+    if (result.isFailure()) {
+      return;
+    }
   }
 }

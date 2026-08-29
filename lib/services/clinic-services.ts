@@ -1,40 +1,69 @@
-import { getDB } from '@/lib/db';
 import type { Service } from '@/lib/types/services';
 import type { CreateServiceInput, UpdateServiceInput } from '@/lib/schemas';
+import type { ClinicServicesRepository } from '@/repositories';
+import { failure, success, type Result, NotFoundError } from '@/domain';
 
 export class ClinicServicesService {
-  static async getAll(): Promise<Service[]> {
-    const db = getDB();
-    return db.list<Service>('services', { orderBy: { column: 'order_position', ascending: true } });
+  constructor(private repository: ClinicServicesRepository) {}
+
+  async getAll(): Promise<Result<Service[]>> {
+    return this.repository.findAll({
+      orderBy: { column: 'order_position', ascending: true },
+    });
   }
 
-  static async getPublished(): Promise<Service[]> {
-    const db = getDB();
-    return db.findWhere<Service>(
-      'services',
-      { is_published: true },
-      { orderBy: { column: 'order_position', ascending: true } }
-    );
+  async getPublished(): Promise<Result<Service[]>> {
+    return this.repository.findPublished();
   }
 
-  static async getById(id: string): Promise<Service | null> {
-    const db = getDB();
-    return db.getById<Service>('services', id);
+  async getPublishedByCreatedAt(): Promise<Result<Service[]>> {
+    const listResult = await this.repository.findAll({
+      orderBy: { column: 'created_at', ascending: true },
+    });
+    if (listResult.isFailure()) {
+      return failure(listResult.error);
+    }
+
+    const published = listResult.data.filter(service => service.is_published);
+    return success(published);
   }
 
-  static async create(input: CreateServiceInput): Promise<Service> {
-    const db = getDB();
-    const now = new Date().toISOString();
-    return db.insert<Service>('services', { ...input, created_at: now, updated_at: now });
+  async getById(id: string): Promise<Result<Service>> {
+    const result = await this.repository.findById(id);
+    if (result.isFailure()) {
+      return failure(result.error);
+    }
+    if (!result.data) {
+      return failure(new NotFoundError('Service', id));
+    }
+    return success(result.data);
   }
 
-  static async update(id: string, input: UpdateServiceInput): Promise<Service> {
-    const db = getDB();
-    return db.updateById<Service>('services', id, { ...input, updated_at: new Date().toISOString() });
+  async create(input: CreateServiceInput): Promise<Result<Service>> {
+    return this.repository.create(input);
   }
 
-  static async delete(id: string): Promise<void> {
-    const db = getDB();
-    return db.deleteById('services', id);
+  async update(id: string, input: UpdateServiceInput): Promise<Result<Service>> {
+    const existsResult = await this.repository.exists(id);
+    if (existsResult.isFailure()) {
+      return failure(existsResult.error);
+    }
+    if (!existsResult.data) {
+      return failure(new NotFoundError('Service', id));
+    }
+
+    return this.repository.update(id, input);
+  }
+
+  async delete(id: string): Promise<Result<void>> {
+    const existsResult = await this.repository.exists(id);
+    if (existsResult.isFailure()) {
+      return failure(existsResult.error);
+    }
+    if (!existsResult.data) {
+      return failure(new NotFoundError('Service', id));
+    }
+
+    return this.repository.delete(id);
   }
 }

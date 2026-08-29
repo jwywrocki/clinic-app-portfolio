@@ -1,4 +1,4 @@
-import { ContactService } from '@/lib/services/contact';
+import { createContactService } from '@/services';
 import { ContactManagement } from '../../components/ContactManagement';
 import {
   saveContactGroupAction,
@@ -8,11 +8,15 @@ import {
 } from '../../actions/contact';
 
 export default async function AdminContactPage() {
-  const contactGroups = await ContactService.getAllGroupsWithDetails();
+  const contactService = createContactService();
+  const contactGroupsResult = await contactService.getAllGroupsWithDetails();
+  if (contactGroupsResult.isFailure()) {
+    throw contactGroupsResult.error;
+  }
 
   return (
     <ContactManagement
-      contactGroups={contactGroups}
+      contactGroups={contactGroupsResult.data}
       onSaveGroup={saveContactGroupAction}
       onDeleteGroup={deleteContactGroupAction}
       onDeleteDetail={deleteContactDetailAction}

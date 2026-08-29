@@ -1,5 +1,4 @@
 import type React from 'react';
-import { getDB } from '@/lib/db';
 import { LayoutWrapper } from '@/components/layout/layout-wrapper';
 import { AnimatedSection } from '@/components/ui/animated-section';
 import { SkipLink } from '@/components/ui/skip-link';
@@ -7,8 +6,10 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Phone, Mail, MapPin, Clock, AlertTriangle, ArrowRight } from 'lucide-react';
-import { sanitizePhoneNumberHtml, stripHtmlTags } from '@/lib/html-sanitizer';
+import { sanitizeHtml, sanitizePhoneNumberHtml, stripHtmlTags } from '@/lib/html-sanitizer';
 import { ContactForm } from '@/components/contact-form';
+import { createContactService, createPagesService, createSettingsService } from '@/services';
+import type { Page } from '@/lib/types/pages';
 
 interface DisplayableContactGroup {
   id: string;
@@ -22,41 +23,19 @@ interface DisplayableContactGroup {
   }>;
 }
 
-interface PageContent {
-  id: string;
-  title: string;
-  content: string;
-  slug: string;
-}
-
 export default async function ContactPage() {
-  const db = getDB();
+  const pagesService = createPagesService();
+  const contactService = createContactService();
+  const settingsService = createSettingsService();
 
-  // 1. Fetch Page Content
-  const pages = await db.findWhere<PageContent>('pages', { slug: 'kontakt', is_published: true });
-  const pageContent = pages && pages.length > 0 ? pages[0] : null;
+  const pageResult = await pagesService.getPublishedBySlug('kontakt');
+  const pageContent: Page | null = pageResult.isFailure() ? null : pageResult.data;
 
-  // 2. Fetch Contact Groups and Details directly
-  const dbGroups = await db.findWhere<any>(
-    'contact_groups',
-    {},
-    { orderBy: { column: 'order_position', ascending: true } }
-  );
-
-  // Manual join to reconstruct the same shape as API
-  let allContactGroups: DisplayableContactGroup[] = [];
-  if (dbGroups && dbGroups.length > 0) {
-    // Find all details
-    const allDetails = await db.findWhere<any>(
-      'contact_details',
-      {},
-      { orderBy: { column: 'order_position', ascending: true } }
-    );
-
-    allContactGroups = dbGroups.map((group: any) => {
-      const groupDetails = allDetails
-        .filter(d => d.group_id === group.id)
-        .map(detail => {
+  const groupsResult = await contactService.getAllGroupsWithDetails();
+  const allContactGroups: DisplayableContactGroup[] = groupsResult.isFailure()
+    ? []
+    : groupsResult.data.map(group => {
+        const groupDetails = (group.contact_details || []).map(detail => {
           let icon = Mail;
           if (detail.type === 'phone') icon = Phone;
           if (detail.type === 'address') icon = MapPin;
@@ -65,16 +44,17 @@ export default async function ContactPage() {
           return { ...detail, icon };
         });
 
-      return {
-        ...group,
-        contact_details: groupDetails,
-      };
-    });
-  }
+        return {
+          id: group.id,
+          label: group.label,
+          featured: group.in_hero,
+          contact_details: groupDetails,
+        };
+      });
 
-  // 3. Fetch Google Maps URL
-  const mapsSetting = await db.findOne<any>('site_settings', { key: 'google_maps_embed_url' });
-  const googleMapsUrl = mapsSetting ? mapsSetting.value : '';
+  const mapsSetting = await settingsService.getByKey('google_maps_embed_url');
+  const googleMapsUrl =
+    !mapsSetting.isFailure() && mapsSetting.data ? mapsSetting.data.value || '' : '';
 
   return (
     <LayoutWrapper>
@@ -94,9 +74,10 @@ export default async function ContactPage() {
               <div
                 className="text-xl text-gray-600 max-w-3xl mx-auto prose prose-xl max-w-none text-center"
                 dangerouslySetInnerHTML={{
-                  __html:
+                  __html: sanitizeHtml(
                     pageContent?.content ||
-                    'Jesteśmy do Twojej dyspozycji. Poniżej znajdziesz nasze dane kontaktowe oraz formularz, za pomocą którego możesz wysłać do nas wiadomość.',
+                      'Jesteśmy do Twojej dyspozycji. Poniżej znajdziesz nasze dane kontaktowe oraz formularz, za pomocą którego możesz wysłać do nas wiadomość.'
+                  ),
                 }}
               />
             </div>

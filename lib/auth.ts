@@ -1,10 +1,9 @@
 import NextAuth from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
-import bcrypt from 'bcryptjs';
-import { getDB } from '@/lib/db';
 import { authConfig } from '@/lib/auth.config';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { createAuthService } from '@/services';
 
 function getPepper(): string {
   const pepper = process.env.BCRYPT_SECRET_KEY;
@@ -37,52 +36,24 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const password = credentials.password as string;
 
         try {
-          const db = getDB();
-          const user = await db.findOne<any>('users', {
+          const authService = createAuthService();
+          const authResult = await authService.authenticateCredentials(
             username,
-            is_active: true,
-          });
-
-          if (!user) return null;
-
-          const passwordWithPepper = password + getPepper();
-          const isPasswordValid = await bcrypt.compare(passwordWithPepper, user.password_hash);
-
-          if (!isPasswordValid) return null;
-
-          // Fetch role
-          let role = '';
-          try {
-            const userRoleLink = await db.findOne<{
-              user_id: string;
-              role_id: string;
-            }>('user_has_roles', { user_id: user.id });
-
-            if (userRoleLink) {
-              const roleRow = await db.getById<{ id: string; name: string }>(
-                'roles',
-                userRoleLink.role_id
-              );
-              role = roleRow?.name ?? '';
-            }
-          } catch (e) {
-            console.error('Could not fetch role for user:', e);
+            password,
+            getPepper()
+          );
+          if (authResult.isFailure()) {
+            console.error('Auth error:', authResult.error);
+            return null;
           }
 
-          // Update last login
-          try {
-            await db.updateById('users', user.id, {
-              last_login: new Date().toISOString(),
-            });
-          } catch (e) {
-            console.error('Exception during last_login update:', e);
-          }
+          if (!authResult.data) return null;
 
           return {
-            id: user.id,
-            name: user.username,
-            email: user.username,
-            role,
+            id: authResult.data.user.id,
+            name: authResult.data.user.username,
+            email: authResult.data.user.username,
+            role: authResult.data.role,
           };
         } catch (error) {
           console.error('Auth error:', error);
@@ -127,9 +98,13 @@ export async function requireRole(
   const sessionOrResponse = await requireAuth(_request);
   if (sessionOrResponse instanceof NextResponse) return sessionOrResponse;
 
-  const userRole = (sessionOrResponse.role ?? '').toLowerCase();
-  const allowed = roles.map(r => r.toLowerCase());
-  if (allowed.length > 0 && !allowed.some(r => userRole === r || userRole.startsWith(r))) {
+  const normalizeRole = (role: string) => {
+    const normalized = role.trim().toLowerCase();
+    return normalized === 'administrator' ? 'admin' : normalized;
+  };
+  const userRole = normalizeRole(sessionOrResponse.role ?? '');
+  const allowed = roles.map(normalizeRole);
+  if (allowed.length > 0 && !allowed.includes(userRole)) {
     return NextResponse.json({ error: 'Brak uprawnień' }, { status: 403 });
   }
   return sessionOrResponse;

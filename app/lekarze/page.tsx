@@ -1,4 +1,4 @@
-import { PagesService } from '@/lib/services/pages';
+import { createPagesService } from '@/services';
 import { LayoutWrapper } from '@/components/layout/layout-wrapper';
 import { AnimatedSection } from '@/components/ui/animated-section';
 import { Badge } from '@/components/ui/badge';
@@ -6,9 +6,12 @@ import { Button } from '@/components/ui/button';
 import { Calendar } from 'lucide-react';
 import Link from 'next/link';
 import { DoctorsList } from '@/components/doctors-list';
+import { sanitizeHtml } from '@/lib/html-sanitizer';
 
 export default async function DoctorsPage() {
-  const pageContent = await PagesService.getPublishedBySlug('lekarze');
+  const pagesService = createPagesService();
+  const pageResult = await pagesService.getPublishedBySlug('lekarze');
+  const pageContent = pageResult.isFailure() ? null : pageResult.data;
 
   return (
     <LayoutWrapper>
@@ -31,9 +34,10 @@ export default async function DoctorsPage() {
                 <div
                   className="text-xl text-gray-600 max-w-3xl mx-auto prose prose-xl max-w-none text-center"
                   dangerouslySetInnerHTML={{
-                    __html:
+                    __html: sanitizeHtml(
                       pageContent?.content ||
-                      'W SPZOZ GOZ Łopuszno pracuje zespół wykwalifikowanych i doświadczonych lekarzy różnych specjalizacji, gotowych nieść pomoc i zapewnić najlepszą opiekę medyczną.',
+                        'W SPZOZ GOZ Łopuszno pracuje zespół wykwalifikowanych i doświadczonych lekarzy różnych specjalizacji, gotowych nieść pomoc i zapewnić najlepszą opiekę medyczną.'
+                    ),
                   }}
                 />
               </div>

@@ -18,3 +18,9 @@ export interface Doctor {
   created_at: string;
   updated_at: string;
 }
+
+export interface DoctorSpecializationLink {
+  id: string;
+  doctor_id: string;
+  specialization_id: string;
+}

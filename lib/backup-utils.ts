@@ -1,5 +1,9 @@
-import { getDB } from '@/lib/db';
 import { resolveProvider } from '@/lib/db/env';
+import {
+  createBackupService,
+  createDatabaseExportService,
+  createSettingsService,
+} from '@/services';
 import fs from 'fs/promises';
 import path from 'path';
 
@@ -12,7 +16,8 @@ export function formatBytes(bytes: number): string {
 }
 
 export async function createBackupFile(backupId: string, filename: string): Promise<void> {
-  const db = getDB();
+  const backupService = createBackupService();
+  const exportService = createDatabaseExportService();
 
   try {
     const backupsDir = path.join(process.cwd(), 'backups');
@@ -101,7 +106,12 @@ export async function createBackupFile(backupId: string, filename: string): Prom
       try {
         console.log(`Backing up table: ${tableName}`);
 
-        const tableData = await db.list<any>(tableName);
+        const tableDataResult = await exportService.listTable(tableName);
+        if (tableDataResult.isFailure()) {
+          console.warn(`Error backing up table ${tableName}:`, tableDataResult.error);
+          continue;
+        }
+        const tableData = tableDataResult.data;
 
         if (!tableData || tableData.length === 0) {
           console.log(`Table ${tableName} is empty, skipping...`);
@@ -144,11 +154,14 @@ export async function createBackupFile(backupId: string, filename: string): Prom
 
     // Update backup record with success
     try {
-      await db.updateById('database_backups', backupId, {
+      const updated = await backupService.updateRecord(backupId, {
         status: 'completed',
         file_size: stats.size,
         completed_at: new Date().toISOString(),
       });
+      if (updated.isFailure()) {
+        throw updated.error;
+      }
       console.log(`Backup ${backupId} completed successfully, size: ${formatBytes(stats.size)}`);
     } catch (updateError) {
       console.error('Error updating backup record:', updateError);
@@ -158,11 +171,14 @@ export async function createBackupFile(backupId: string, filename: string): Prom
 
     // Update backup record with failure
     try {
-      await db.updateById('database_backups', backupId, {
+      const updated = await backupService.updateRecord(backupId, {
         status: 'failed',
         error_message: error.message,
         completed_at: new Date().toISOString(),
       });
+      if (updated.isFailure()) {
+        throw updated.error;
+      }
     } catch (updateError) {
       console.error('Error updating failed backup record:', updateError);
     }
@@ -177,17 +193,15 @@ export async function handleAutoBackup(): Promise<{
   backup_id?: string;
 }> {
   try {
-    const db = getDB();
+    const settingsService = createSettingsService();
+    const backupService = createBackupService();
 
-    const settings = await db.list<any>('site_settings');
-    const settingsMap =
-      settings?.reduce(
-        (acc: Record<string, string>, setting: any) => {
-          acc[setting.key] = setting.value;
-          return acc;
-        },
-        {} as Record<string, string>
-      ) || {};
+    const settingsResult = await settingsService.getAllAsMap();
+    if (settingsResult.isFailure()) {
+      throw settingsResult.error;
+    }
+
+    const settingsMap = settingsResult.data;
 
     if (settingsMap.db_backup_enabled !== 'true') {
       return { success: false, message: 'Automatyczne kopie zapasowe są wyłączone' };
@@ -197,13 +211,16 @@ export async function handleAutoBackup(): Promise<{
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const filename = `auto-backup-${timestamp}.sql`;
 
-    await db.insert('database_backups', {
+    const created = await backupService.createRecord({
       id: backupId,
       filename,
       file_path: `/backups/${filename}`,
       backup_type: 'automatic',
       status: 'in_progress',
     });
+    if (created.isFailure()) {
+      throw created.error;
+    }
 
     await createBackupFile(backupId, filename);
 
@@ -224,18 +241,27 @@ export async function handleBackupCleanup(): Promise<{
   cleaned_count?: number;
 }> {
   try {
-    const db = getDB();
+    const settingsService = createSettingsService();
+    const backupService = createBackupService();
 
-    const retentionSetting = await db.findOne<any>('site_settings', {
-      key: 'db_backup_retention_days',
-    });
-    const retentionDays = parseInt(retentionSetting?.value || '30');
+    const retentionSetting = await settingsService.getByKey('db_backup_retention_days');
+    const retentionDays = parseInt(
+      !retentionSetting.isFailure() && retentionSetting.data?.value
+        ? retentionSetting.data.value
+        : '30'
+    );
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
 
     // Fetch completed backups and filter by date client-side
-    const allBackups = await db.findWhere<any>('database_backups', { status: 'completed' });
-    const oldBackups = allBackups.filter((b: any) => new Date(b.created_at) < cutoffDate);
+    const allBackupsResult = await backupService.listAll();
+    if (allBackupsResult.isFailure()) {
+      throw allBackupsResult.error;
+    }
+
+    const oldBackups = allBackupsResult.data.filter(
+      backup => backup.status === 'completed' && new Date(backup.created_at) < cutoffDate
+    );
 
     if (!oldBackups || oldBackups.length === 0) {
       return {
@@ -260,11 +286,11 @@ export async function handleBackupCleanup(): Promise<{
         }
 
         // Remove database record
-        try {
-          await db.deleteById('database_backups', backup.id);
+        const deleteResult = await backupService.deleteRecord(backup.id);
+        if (deleteResult.isFailure()) {
+          console.error(`Error deleting backup record ${backup.id}:`, deleteResult.error);
+        } else {
           cleanedCount++;
-        } catch (deleteError) {
-          console.error(`Error deleting backup record ${backup.id}:`, deleteError);
         }
       } catch (error) {
         console.error(`Error cleaning backup ${backup.id}:`, error);

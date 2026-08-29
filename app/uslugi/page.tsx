@@ -1,4 +1,3 @@
-import { getDB } from '@/lib/db';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -7,21 +6,10 @@ import Link from 'next/link';
 import { LayoutWrapper } from '@/components/layout/layout-wrapper';
 import { AnimatedSection } from '@/components/ui/animated-section';
 import { SkipLink } from '@/components/ui/skip-link';
-
-interface PageContent {
-  id: string;
-  title: string;
-  content: string;
-  slug: string;
-  meta_description?: string;
-}
-
-interface Service {
-  id: string;
-  title: string;
-  description: string;
-  icon: string;
-}
+import { sanitizeHtml } from '@/lib/html-sanitizer';
+import { createClinicServicesService, createPagesService } from '@/services';
+import type { Page } from '@/lib/types/pages';
+import type { Service } from '@/lib/types/services';
 
 const iconEmojiMap: { [key: string]: string } = {
   heart: '❤️',
@@ -55,20 +43,14 @@ const getIconEmoji = (iconName: string | undefined): string => {
 };
 
 export default async function ServicesPage() {
-  const db = getDB();
+  const pagesService = createPagesService();
+  const clinicServicesService = createClinicServicesService();
 
-  // Fetch page data on the server
-  const pages = await db.findWhere<PageContent>('pages', { slug: 'uslugi', is_published: true });
-  const pageContent = pages && pages.length > 0 ? pages[0] : null;
+  const pageResult = await pagesService.getPublishedBySlug('uslugi');
+  const pageContent: Page | null = pageResult.isFailure() ? null : pageResult.data;
 
-  // Fetch services on the server
-  const services = await db.findWhere<Service>(
-    'services',
-    { is_published: true },
-    {
-      orderBy: { column: 'created_at', ascending: true },
-    }
-  );
+  const servicesResult = await clinicServicesService.getPublishedByCreatedAt();
+  const services: Service[] = servicesResult.isFailure() ? [] : servicesResult.data;
 
   if (!pageContent) {
     return (
@@ -105,9 +87,10 @@ export default async function ServicesPage() {
                 <div
                   className="text-xl text-gray-600 max-w-3xl mx-auto mb-8 prose prose-xl max-w-none text-center"
                   dangerouslySetInnerHTML={{
-                    __html:
+                    __html: sanitizeHtml(
                       pageContent?.content ||
-                      'W SPZOZ GOZ Łopuszno oferujemy szeroki wachlarz usług medycznych, aby sprostać potrzebom zdrowotnym naszych pacjentów. Nasz doświadczony personel i nowoczesny sprzęt gwarantują najwyższą jakość opieki.',
+                        'W SPZOZ GOZ Łopuszno oferujemy szeroki wachlarz usług medycznych, aby sprostać potrzebom zdrowotnym naszych pacjentów. Nasz doświadczony personel i nowoczesny sprzęt gwarantują najwyższą jakość opieki.'
+                    ),
                   }}
                 />
               </div>
@@ -138,7 +121,7 @@ export default async function ServicesPage() {
                         <CardContent className="space-y-4 flex-1">
                           <div
                             className="text-gray-600 text-center leading-relaxed prose prose-sm max-w-none"
-                            dangerouslySetInnerHTML={{ __html: service.description }}
+                            dangerouslySetInnerHTML={{ __html: sanitizeHtml(service.description) }}
                           />
                         </CardContent>
                       </Card>

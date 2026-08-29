@@ -1,12 +1,17 @@
 import { type NextRequest, NextResponse } from 'next/server';
-import { ContactService } from '@/lib/services/contact';
+import { createContactService } from '@/services';
 import { CreateContactGroupSchema, formatZodError } from '@/lib/schemas';
 import { requireAuth, isAuthError } from '@/lib/auth';
 
+const contactService = createContactService();
+
 export async function GET() {
   try {
-    const groupsWithDetails = await ContactService.getAllGroupsWithDetails();
-    return NextResponse.json(groupsWithDetails, {
+    const groupsWithDetails = await contactService.getAllGroupsWithDetails();
+    if (groupsWithDetails.isFailure()) {
+      throw groupsWithDetails.error;
+    }
+    return NextResponse.json(groupsWithDetails.data, {
       headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' },
     });
   } catch (e) {
@@ -25,8 +30,11 @@ export async function POST(request: NextRequest) {
     if (!parsed.success) {
       return NextResponse.json({ error: formatZodError(parsed.error.issues) }, { status: 400 });
     }
-    const groupWithDetails = await ContactService.createGroup(parsed.data);
-    return NextResponse.json(groupWithDetails, { status: 201 });
+    const groupWithDetails = await contactService.createGroup(parsed.data);
+    if (groupWithDetails.isFailure()) {
+      throw groupWithDetails.error;
+    }
+    return NextResponse.json(groupWithDetails.data, { status: 201 });
   } catch (e) {
     console.error('POST /api/contact_groups error', e);
     return NextResponse.json({ error: 'Błąd serwera' }, { status: 500 });

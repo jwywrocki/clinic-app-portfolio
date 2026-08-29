@@ -1,18 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDB } from '@/lib/db';
 import { formatBytes, createBackupFile } from '@/lib/backup-utils';
 import { requireRole, isAuthError } from '@/lib/auth';
+import { createBackupService } from '@/services';
 
 export async function GET(request: NextRequest) {
   const auth = await requireRole(request, 'admin');
   if (isAuthError(auth)) return auth;
 
   try {
-    const db = getDB();
-    const backups = await db.list<any>('database_backups', {
-      orderBy: { column: 'created_at', ascending: false },
-      limit: 20,
-    });
+    const backupService = createBackupService();
+    const backupsResult = await backupService.listRecent(20);
+    if (backupsResult.isFailure()) {
+      throw backupsResult.error;
+    }
+
+    const backups = backupsResult.data;
 
     const formattedBackups =
       backups?.map((backup: any) => ({
@@ -36,18 +38,21 @@ export async function POST(request: NextRequest) {
   if (isAuthError(auth)) return auth;
 
   try {
-    const db = getDB();
+    const backupService = createBackupService();
     const backupId = crypto.randomUUID();
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const filename = `backup-${timestamp}.sql`;
 
-    await db.insert('database_backups', {
+    const created = await backupService.createRecord({
       id: backupId,
       filename,
       file_path: `/backups/${filename}`,
       backup_type: 'manual',
       status: 'in_progress',
     });
+    if (created.isFailure()) {
+      throw created.error;
+    }
 
     // Start backup creation asynchronously
     createBackupFile(backupId, filename).catch(error => {

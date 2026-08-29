@@ -1,17 +1,22 @@
 import { NextResponse } from 'next/server';
-import { getPublishedSurveyForPage } from '@/lib/surveys-db';
+import { createSurveyService } from '@/services';
+import { NotFoundError } from '@/domain';
+
+const surveyService = createSurveyService();
 
 export async function GET(request: Request, { params }: { params: { surveyId: string } }) {
   try {
     const { surveyId } = params;
-    const survey = await getPublishedSurveyForPage(surveyId);
-
-    if (!survey) {
-      return NextResponse.json({ error: 'Survey not found or not published' }, { status: 404 });
+    const surveyResult = await surveyService.getPublishedSurveyForPage(surveyId);
+    if (surveyResult.isFailure()) {
+      if (surveyResult.error instanceof NotFoundError) {
+        return NextResponse.json({ error: 'Survey not found or not published' }, { status: 404 });
+      }
+      throw surveyResult.error;
     }
 
     // Add caching headers for better performance
-    const response = NextResponse.json(survey);
+    const response = NextResponse.json(surveyResult.data);
     response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
 
     return response;

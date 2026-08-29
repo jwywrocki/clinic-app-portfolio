@@ -49,6 +49,8 @@ Thumbs.db
 /public/uploads
 /backups
 /logs
+/backup-*.sql
+/test_backup_*.sql
 
 # misc
 *.tgz

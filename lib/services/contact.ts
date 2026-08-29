@@ -1,124 +1,163 @@
-import { getDB } from '@/lib/db';
-import { ContactGroup, ContactDetail } from '@/lib/types/contact';
+import type { ContactGroup, ContactDetail } from '@/lib/types/contact';
+import type {
+  CreateContactDetailInput,
+  CreateContactGroupInput,
+  UpdateContactDetailInput,
+  UpdateContactGroupInput,
+} from '@/lib/schemas';
+import type { ContactDetailRepository, ContactGroupRepository } from '@/repositories';
+import { failure, success, type Result, NotFoundError } from '@/domain';
 
 export class ContactService {
-  static async getAllDetails(): Promise<ContactDetail[]> {
-    const db = getDB();
-    return db.list<ContactDetail>('contact_details', {
-      orderBy: { column: 'order_position', ascending: true },
+  constructor(
+    private groupRepository: ContactGroupRepository,
+    private detailRepository: ContactDetailRepository
+  ) {}
+
+  async getAllDetails(): Promise<Result<ContactDetail[]>> {
+    return this.detailRepository.listOrdered();
+  }
+
+  async getDetailById(id: string): Promise<Result<ContactDetail>> {
+    const detailResult = await this.detailRepository.findById(id);
+    if (detailResult.isFailure()) {
+      return failure(detailResult.error);
+    }
+    if (!detailResult.data) {
+      return failure(new NotFoundError('Contact detail', id));
+    }
+    return success(detailResult.data);
+  }
+
+  async getAllGroupsWithDetails(): Promise<Result<ContactGroup[]>> {
+    const groupResult = await this.groupRepository.listOrdered();
+    if (groupResult.isFailure()) {
+      return failure(groupResult.error);
+    }
+
+    const detailResult = await this.detailRepository.listOrdered();
+    if (detailResult.isFailure()) {
+      return failure(detailResult.error);
+    }
+
+    const detailsByGroupId = detailResult.data.reduce<Record<string, ContactDetail[]>>(
+      (acc, detail) => {
+        if (!detail.group_id) return acc;
+        acc[detail.group_id] = acc[detail.group_id] || [];
+        acc[detail.group_id]?.push(detail);
+        return acc;
+      },
+      {}
+    );
+
+    const groups = groupResult.data.map(group => ({
+      ...group,
+      contact_details: detailsByGroupId[group.id] || [],
+    }));
+
+    return success(groups);
+  }
+
+  async getGroupWithDetails(groupId: string): Promise<Result<ContactGroup>> {
+    const groupResult = await this.groupRepository.findById(groupId);
+    if (groupResult.isFailure()) {
+      return failure(groupResult.error);
+    }
+    if (!groupResult.data) {
+      return failure(new NotFoundError('Contact group', groupId));
+    }
+
+    const detailResult = await this.detailRepository.listByGroupId(groupId);
+    if (detailResult.isFailure()) {
+      return failure(detailResult.error);
+    }
+
+    return success({
+      ...groupResult.data,
+      contact_details: detailResult.data,
     });
   }
 
-  static async getDetailById(id: string): Promise<ContactDetail | null> {
-    const db = getDB();
-    return db.getById<ContactDetail>('contact_details', id);
-  }
-
-  static async getAllGroupsWithDetails(): Promise<ContactGroup[]> {
-    const db = getDB();
-    const groups = await db.findWhere<ContactGroup>(
-      'contact_groups',
-      {},
-      { orderBy: { column: 'order_position', ascending: true } }
-    );
-    const allDetails = await db.findWhere<ContactDetail>(
-      'contact_details',
-      {},
-      { orderBy: { column: 'order_position', ascending: true } }
-    );
-
-    const detailsByGroupId = allDetails.reduce(
-      (acc, detail) => {
-        const groupId = detail.group_id;
-        if (!groupId) return acc;
-
-        if (!acc[groupId]) {
-          acc[groupId] = [];
-        }
-        acc[groupId].push(detail);
-        return acc;
-      },
-      {} as Record<string, ContactDetail[]>
-    );
-
-    return groups.map(group => ({
-      ...group,
-      contact_details: detailsByGroupId[group.id!] || [],
-    }));
-  }
-
-  static async getGroupWithDetails(groupId: string): Promise<ContactGroup | null> {
-    const db = getDB();
-    const group = await db.getById<ContactGroup>('contact_groups', groupId);
-    if (!group) return null;
-
-    const details = await db.findWhere<ContactDetail>(
-      'contact_details',
-      { group_id: groupId },
-      { orderBy: { column: 'order_position', ascending: true } }
-    );
-    return { ...group, contact_details: details };
-  }
-
-  static async createGroup(data: Partial<ContactGroup>): Promise<ContactGroup> {
-    const db = getDB();
-    const now = new Date().toISOString();
-    const insertData = { ...data, created_at: now, updated_at: now };
-
-    const newGroup = await db.insert<ContactGroup>('contact_groups', insertData);
-    return { ...newGroup, contact_details: [] };
-  }
-
-  static async updateGroup(id: string, data: Partial<ContactGroup>): Promise<ContactGroup> {
-    const db = getDB();
-    const updateData = { ...data, updated_at: new Date().toISOString() };
-    await db.updateById('contact_groups', id, updateData);
-
-    const updatedGroup = await this.getGroupWithDetails(id);
-    if (!updatedGroup) throw new Error(`Contact group with id ${id} not found after update`);
-    return updatedGroup;
-  }
-
-  static async createDetail(data: Partial<ContactDetail>): Promise<ContactDetail> {
-    const db = getDB();
-    const now = new Date().toISOString();
-    const insertData = { ...data, created_at: now, updated_at: now };
-    return await db.insert<ContactDetail>('contact_details', insertData);
-  }
-
-  static async updateDetail(id: string, data: Partial<ContactDetail>): Promise<ContactDetail> {
-    const db = getDB();
-    const updateData = { ...data, updated_at: new Date().toISOString() };
-    await db.updateById('contact_details', id, updateData);
-    const detail = await db.getById<ContactDetail>('contact_details', id);
-    if (!detail) throw new Error(`Contact detail with id ${id} not found after update`);
-    return detail;
-  }
-
-  static async deleteDetail(id: string): Promise<void> {
-    const db = getDB();
-    await db.deleteById('contact_details', id);
-  }
-
-  static async deleteGroup(id: string): Promise<void> {
-    const db = getDB();
-    const details = await db.findWhere<ContactDetail>('contact_details', { group_id: id });
-    for (const detail of details) {
-      if (detail.id) {
-        await db.deleteById('contact_details', detail.id);
-      }
+  async createGroup(input: CreateContactGroupInput): Promise<Result<ContactGroup>> {
+    const createResult = await this.groupRepository.create(input);
+    if (createResult.isFailure()) {
+      return failure(createResult.error);
     }
-    await db.deleteById('contact_groups', id);
+
+    return success({ ...createResult.data, contact_details: [] });
   }
 
-  static async reorderGroups(groups: { id: string; order_position: number }[]): Promise<void> {
-    const db = getDB();
-    const now = new Date().toISOString();
-    for (const group of groups) {
-      await db.updateById('contact_groups', group.id, {
-        order_position: group.order_position,
-        updated_at: now,
-      });
+  async updateGroup(id: string, input: UpdateContactGroupInput): Promise<Result<ContactGroup>> {
+    const existsResult = await this.groupRepository.exists(id);
+    if (existsResult.isFailure()) {
+      return failure(existsResult.error);
     }
+    if (!existsResult.data) {
+      return failure(new NotFoundError('Contact group', id));
+    }
+
+    const updateResult = await this.groupRepository.update(id, input);
+    if (updateResult.isFailure()) {
+      return failure(updateResult.error);
+    }
+
+    const detailResult = await this.detailRepository.listByGroupId(id);
+    if (detailResult.isFailure()) {
+      return failure(detailResult.error);
+    }
+
+    return success({
+      ...updateResult.data,
+      contact_details: detailResult.data,
+    });
+  }
+
+  async createDetail(input: CreateContactDetailInput): Promise<Result<ContactDetail>> {
+    return this.detailRepository.create(input);
+  }
+
+  async updateDetail(id: string, input: UpdateContactDetailInput): Promise<Result<ContactDetail>> {
+    const existsResult = await this.detailRepository.exists(id);
+    if (existsResult.isFailure()) {
+      return failure(existsResult.error);
+    }
+    if (!existsResult.data) {
+      return failure(new NotFoundError('Contact detail', id));
+    }
+
+    return this.detailRepository.update(id, input);
+  }
+
+  async deleteDetail(id: string): Promise<Result<void>> {
+    const existsResult = await this.detailRepository.exists(id);
+    if (existsResult.isFailure()) {
+      return failure(existsResult.error);
+    }
+    if (!existsResult.data) {
+      return failure(new NotFoundError('Contact detail', id));
+    }
+
+    return this.detailRepository.delete(id);
+  }
+
+  async deleteGroup(id: string): Promise<Result<void>> {
+    const existsResult = await this.groupRepository.exists(id);
+    if (existsResult.isFailure()) {
+      return failure(existsResult.error);
+    }
+    if (!existsResult.data) {
+      return failure(new NotFoundError('Contact group', id));
+    }
+
+    const detailsDelete = await this.detailRepository.deleteByGroupId(id);
+    if (detailsDelete.isFailure()) {
+      return failure(detailsDelete.error);
+    }
+
+    return this.groupRepository.delete(id);
+  }
+
+  async reorderGroups(groups: { id: string; order_position: number }[]): Promise<Result<void>> {
+    return this.groupRepository.updateOrderPositions(groups);
   }
 }

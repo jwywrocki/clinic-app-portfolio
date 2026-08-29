@@ -1,5 +1,5 @@
-import { getDB } from '@/lib/db';
 import { unstable_cache } from 'next/cache';
+import { createSettingsService } from '@/services';
 
 interface SiteSettings {
   [key: string]: string;
@@ -35,13 +35,15 @@ const SITE_SETTINGS_KEYS = [
 export const getSiteSettings = unstable_cache(
   async (): Promise<SiteSettings> => {
     try {
-      const db = getDB();
-      const settings = await db.list<any>('site_settings');
+      const settingsService = createSettingsService();
+      const settingsResult = await settingsService.getAllAsMap();
+      if (settingsResult.isFailure()) {
+        throw settingsResult.error;
+      }
+
       const settingsObj: SiteSettings = {};
-      settings?.forEach((setting: any) => {
-        if (SITE_SETTINGS_KEYS.includes(setting.key)) {
-          settingsObj[setting.key] = setting.value || '';
-        }
+      SITE_SETTINGS_KEYS.forEach(key => {
+        settingsObj[key] = settingsResult.data[key] || '';
       });
       return settingsObj;
     } catch (error) {

@@ -1,18 +1,16 @@
 import { NextResponse } from 'next/server';
-import { getDB } from '@/lib/db';
 import * as fs from 'fs';
 import * as path from 'path';
+import { createNewsService, createPagesService } from '@/services';
 
 export async function POST(request: Request) {
   try {
-    const db = getDB();
-
-    // Parse request body
-    const body = await request.json().catch(() => ({}));
+    const pagesService = createPagesService();
+    const newsService = createNewsService();
 
     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://clinic.jaqb.dev';
 
-    let urls: Array<{ url: string; lastmod: string; changefreq: string; priority: string }> = [
+    const urls: Array<{ url: string; lastmod: string; changefreq: string; priority: string }> = [
       {
         url: baseUrl,
         lastmod: new Date().toISOString().slice(0, 10),
@@ -53,9 +51,9 @@ export async function POST(request: Request) {
 
     try {
       // Add dynamic pages
-      const pages = await db.findWhere<any>('pages', { is_published: true });
-      if (pages && Array.isArray(pages)) {
-        pages.forEach((page: any) => {
+      const pagesResult = await pagesService.getPublished();
+      if (!pagesResult.isFailure()) {
+        pagesResult.data.forEach(page => {
           urls.push({
             url: `${baseUrl}/${page.slug}`,
             lastmod: new Date(page.updated_at).toISOString().slice(0, 10),
@@ -66,9 +64,9 @@ export async function POST(request: Request) {
       }
 
       // Add news pages
-      const news = await db.findWhere<any>('news', { is_published: true });
-      if (news && Array.isArray(news)) {
-        news.forEach((article: any) => {
+      const newsResult = await newsService.getPublished();
+      if (!newsResult.isFailure()) {
+        newsResult.data.forEach(article => {
           urls.push({
             url: `${baseUrl}/aktualnosci/${article.id}`,
             lastmod: new Date(article.updated_at || article.created_at).toISOString().slice(0, 10),

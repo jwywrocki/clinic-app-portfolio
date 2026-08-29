@@ -4,9 +4,11 @@ import { authConfig } from '@/lib/auth.config';
 
 const { auth } = NextAuth(authConfig);
 
-const loginAttempts = new Map<string, { count: number; resetAt: number }>();
-const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
+const rateLimitEntries = new Map<string, { count: number; resetAt: number }>();
+const LOGIN_RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
 const MAX_LOGIN_ATTEMPTS = 10;
+const CONTACT_RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
+const MAX_CONTACT_ATTEMPTS = 5;
 
 function getClientIp(request: NextRequest): string {
   return (
@@ -16,17 +18,32 @@ function getClientIp(request: NextRequest): string {
   );
 }
 
-function isRateLimited(ip: string): boolean {
+function getRateLimitRetryAfter(
+  scope: 'login' | 'contact',
+  ip: string,
+  maxAttempts: number,
+  windowMs: number
+): number | null {
   const now = Date.now();
-  const entry = loginAttempts.get(ip);
+  const key = `${scope}:${ip}`;
+  const entry = rateLimitEntries.get(key);
 
-  if (!entry || now > entry.resetAt) {
-    loginAttempts.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
-    return false;
+  if (rateLimitEntries.size > 1000) {
+    for (const [entryKey, value] of rateLimitEntries) {
+      if (now > value.resetAt) rateLimitEntries.delete(entryKey);
+    }
   }
 
+  if (!entry || now > entry.resetAt) {
+    rateLimitEntries.set(key, { count: 1, resetAt: now + windowMs });
+    return null;
+  }
+
+  if (entry.count >= maxAttempts) {
+    return Math.max(1, Math.ceil((entry.resetAt - now) / 1000));
+  }
   entry.count++;
-  return entry.count > MAX_LOGIN_ATTEMPTS;
+  return null;
 }
 
 function applySecurityHeaders(response: NextResponse): NextResponse {
@@ -67,11 +84,18 @@ export default auth(function middleware(request) {
   // Rate limit login
   if (pathname === '/api/auth' && request.method === 'POST') {
     const ip = getClientIp(request);
-    if (isRateLimited(ip)) {
+    const retryAfter = getRateLimitRetryAfter(
+      'login',
+      ip,
+      MAX_LOGIN_ATTEMPTS,
+      LOGIN_RATE_LIMIT_WINDOW_MS
+    );
+    if (retryAfter) {
       const response = NextResponse.json(
         { error: 'Zbyt wiele prób logowania. Spróbuj ponownie za 15 minut.' },
         { status: 429 }
       );
+      response.headers.set('Retry-After', retryAfter.toString());
       return applySecurityHeaders(response);
     }
   }
@@ -79,11 +103,18 @@ export default auth(function middleware(request) {
   // Rate limit contact form
   if (pathname === '/api/contact/send' && request.method === 'POST') {
     const ip = getClientIp(request);
-    if (isRateLimited(ip)) {
+    const retryAfter = getRateLimitRetryAfter(
+      'contact',
+      ip,
+      MAX_CONTACT_ATTEMPTS,
+      CONTACT_RATE_LIMIT_WINDOW_MS
+    );
+    if (retryAfter) {
       const response = NextResponse.json(
         { error: 'Zbyt wiele wiadomości. Spróbuj ponownie później.' },
         { status: 429 }
       );
+      response.headers.set('Retry-After', retryAfter.toString());
       return applySecurityHeaders(response);
     }
   }

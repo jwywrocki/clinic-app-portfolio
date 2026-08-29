@@ -1,30 +1,30 @@
-import { getDB } from '@/lib/db';
 import { Dashboard } from '../../components/Dashboard';
+import {
+  createClinicServicesService,
+  createDoctorService,
+  createNewsService,
+  createPagesService,
+} from '@/services';
+import type { Page } from '@/lib/types/pages';
+import type { Service } from '@/lib/types/services';
+import type { NewsItem } from '@/lib/types/news';
+import type { Doctor } from '@/lib/types/doctors';
 
 export default async function AdminDashboardPage() {
-    const db = getDB();
+  const pagesService = createPagesService();
+  const clinicServicesService = createClinicServicesService();
+  const newsService = createNewsService();
+  const doctorService = createDoctorService();
 
-    // Fetch data for the dashboard summary
-    const pages = await db.findWhere('pages', {});
-    const services = await db.findWhere('services', {});
-    const news = await db.findWhere('news', {});
-    const doctors = await db.findWhere('doctors', {});
-    const specializations = await db.findWhere('specializations', {});
+  const pagesResult = await pagesService.getAllByUpdatedAt();
+  const servicesResult = await clinicServicesService.getAll();
+  const newsResult = await newsService.getAllByCreatedAt();
+  const doctorsResult = await doctorService.getAllDoctors();
 
-    const enrichedDoctors = doctors.map((doc: any) => {
-        const spec = specializations.find((s: any) => s.id === doc.specialization);
-        return {
-            ...doc,
-            specialization_name: spec ? spec.name : doc.specialization
-        };
-    });
+  const pages: Page[] = pagesResult.isFailure() ? [] : pagesResult.data;
+  const services: Service[] = servicesResult.isFailure() ? [] : servicesResult.data;
+  const news: NewsItem[] = newsResult.isFailure() ? [] : newsResult.data;
+  const doctors: Doctor[] = doctorsResult.isFailure() ? [] : doctorsResult.data;
 
-    return (
-        <Dashboard 
-            pages={pages} 
-            services={services} 
-            news={news} 
-            doctors={enrichedDoctors} 
-        />
-    );
+  return <Dashboard pages={pages} services={services} news={news} doctors={doctors} />;
 }

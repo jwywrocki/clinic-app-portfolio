@@ -3,13 +3,8 @@ import { DoctorRepository } from './interfaces';
 import { BaseRepository } from './base';
 import { DBClient } from '@/lib/db/types';
 import { Specialization } from '@/lib/types/specializations';
+import { DoctorSpecializationLink } from '@/lib/types/doctors';
 import { QueryOptions } from '@/domain';
-
-interface DoctorSpecializationLink {
-  id: string;
-  doctor_id: string;
-  specialization_id: string;
-}
 
 export class DoctorRepositoryImpl extends BaseRepository<Doctor> implements DoctorRepository {
   constructor(db: DBClient) {

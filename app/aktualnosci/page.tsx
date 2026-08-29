@@ -2,7 +2,7 @@ import { LayoutWrapper } from '@/components/layout/layout-wrapper';
 import { AnimatedSection } from '@/components/ui/animated-section';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Calendar, User } from 'lucide-react';
-import { NewsService } from '@/lib/services/news';
+import { createNewsService } from '@/services';
 import Image from 'next/image';
 import { sanitizeHtml } from '@/lib/html-sanitizer';
 
@@ -10,8 +10,12 @@ export default async function NewsPage() {
   let news: any[] = [];
 
   try {
-    const allNews = await NewsService.getPublished();
-    news = allNews || [];
+    const newsService = createNewsService();
+    const allNews = await newsService.getPublished();
+    if (allNews.isFailure()) {
+      throw allNews.error;
+    }
+    news = allNews.data;
   } catch (error) {
     console.error('Error fetching news:', error);
   }

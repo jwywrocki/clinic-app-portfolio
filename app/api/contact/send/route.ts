@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import nodemailer from 'nodemailer';
-import { SettingService } from '@/lib/services/settings';
+import { createSettingsService } from '@/services';
 import { decryptSensitiveData, isEncrypted } from '@/lib/crypto';
 
 interface ContactFormData {
@@ -30,9 +30,16 @@ const emailSettingKeys = [
   'email_use_tls',
 ];
 
+const settingsService = createSettingsService();
+const MAX_REQUEST_SIZE = 12 * 1024;
+
 async function loadEmailSettings(): Promise<EmailSettings | null> {
   try {
-    const settingsMap = await SettingService.getAllAsMap();
+    const settingsResult = await settingsService.getAllAsMap();
+    if (settingsResult.isFailure()) {
+      throw settingsResult.error;
+    }
+    const settingsMap = settingsResult.data;
 
     const emailSettings: Partial<EmailSettings> = {};
     for (const key of emailSettingKeys) {
@@ -56,46 +63,86 @@ function validateEmailSettings(settings: EmailSettings): string | null {
   if (!settings.email_smtp_user) return 'SMTP user not configured';
   if (!settings.email_smtp_password) return 'SMTP password not configured';
   if (!settings.email_from_address) return 'From address not configured';
+  const port = Number(settings.email_smtp_port);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) return 'Invalid SMTP port';
   return null;
 }
 
-function validateContactForm(data: ContactFormData): string | null {
-  if (!data.name?.trim()) return 'Name is required';
-  if (!data.email?.trim()) return 'Email is required';
-  if (!data.subject?.trim()) return 'Subject is required';
-  if (!data.message?.trim()) return 'Message is required';
+function validateContactForm(data: unknown): string | null {
+  if (!data || typeof data !== 'object') return 'Invalid request body';
+  const formData = data as Partial<Record<keyof ContactFormData, unknown>>;
+  if (typeof formData.name !== 'string' || !formData.name.trim()) return 'Name is required';
+  if (typeof formData.email !== 'string' || !formData.email.trim()) return 'Email is required';
+  if (typeof formData.subject !== 'string' || !formData.subject.trim()) return 'Subject is required';
+  if (typeof formData.message !== 'string' || !formData.message.trim()) return 'Message is required';
 
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(data.email)) return 'Invalid email format';
+  if (!emailRegex.test(formData.email)) return 'Invalid email format';
 
-  if (data.name.length > 100) return 'Name too long';
-  if (data.subject.length > 200) return 'Subject too long';
-  if (data.message.length > 5000) return 'Message too long';
+  if (formData.name.length > 100) return 'Name too long';
+  if (formData.subject.length > 200) return 'Subject too long';
+  if (formData.message.length > 5000) return 'Message too long';
 
   return null;
 }
 
-function sanitizeInput(input: string): string {
+function sanitizeSingleLine(input: string): string {
+  return input.replace(/[\r\n]+/g, ' ').trim();
+}
+
+function sanitizeMessage(input: string): string {
+  return input.replace(/\r\n?/g, '\n').trim();
+}
+
+function escapeHtml(input: string): string {
   return input
-    .replace(/<[^>]*>/g, '') // Strip all HTML tags
-    .replace(/[\r\n]+/g, '\n') // Normalize line breaks
-    .trim();
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const body = (await request.json()) as ContactFormData;
+    if (!request.headers.get('content-type')?.toLowerCase().startsWith('application/json')) {
+      return NextResponse.json({ error: 'Content-Type must be application/json' }, { status: 415 });
+    }
+
+    const contentLength = Number(request.headers.get('content-length') || 0);
+    if (contentLength > MAX_REQUEST_SIZE) {
+      return NextResponse.json({ error: 'Request body too large' }, { status: 413 });
+    }
+
+    const rawBody = await request.text();
+    if (Buffer.byteLength(rawBody, 'utf8') > MAX_REQUEST_SIZE) {
+      return NextResponse.json({ error: 'Request body too large' }, { status: 413 });
+    }
+
+    let body: unknown;
+    try {
+      body = JSON.parse(rawBody);
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
 
     const validationError = validateContactForm(body);
     if (validationError) {
       return NextResponse.json({ error: validationError }, { status: 400 });
     }
 
+    const formData = body as ContactFormData;
     const sanitizedData = {
-      name: sanitizeInput(body.name),
-      email: sanitizeInput(body.email),
-      subject: sanitizeInput(body.subject),
-      message: sanitizeInput(body.message),
+      name: sanitizeSingleLine(formData.name),
+      email: sanitizeSingleLine(formData.email),
+      subject: sanitizeSingleLine(formData.subject),
+      message: sanitizeMessage(formData.message),
+    };
+    const escapedData = {
+      name: escapeHtml(sanitizedData.name),
+      email: escapeHtml(sanitizedData.email),
+      subject: escapeHtml(sanitizedData.subject),
+      message: escapeHtml(sanitizedData.message),
     };
 
     const emailSettings = await loadEmailSettings();
@@ -110,18 +157,29 @@ export async function POST(request: NextRequest) {
 
     const transporter = nodemailer.createTransport({
       host: emailSettings.email_smtp_host,
-      port: parseInt(emailSettings.email_smtp_port),
-      secure: parseInt(emailSettings.email_smtp_port) === 465,
+      port: Number(emailSettings.email_smtp_port),
+      secure: Number(emailSettings.email_smtp_port) === 465,
+      requireTLS: emailSettings.email_use_tls === 'true',
       auth: {
         user: emailSettings.email_smtp_user,
         pass: emailSettings.email_smtp_password,
       },
       tls: {
-        rejectUnauthorized: emailSettings.email_use_tls === 'true',
+        rejectUnauthorized: true,
       },
+      connectionTimeout: 10_000,
+      greetingTimeout: 10_000,
+      socketTimeout: 20_000,
+      disableFileAccess: true,
+      disableUrlAccess: true,
     });
 
-    await transporter.verify();
+    const clientIp = escapeHtml(
+      request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+        request.headers.get('x-real-ip') ||
+        'Unknown'
+    );
+    const userAgent = escapeHtml(request.headers.get('user-agent') || 'Unknown');
 
     const mailOptions = {
       from: `${emailSettings.email_from_name} <${emailSettings.email_from_address}>`,
@@ -139,15 +197,15 @@ export async function POST(request: NextRequest) {
                         <table style="width: 100%; border-collapse: collapse;">
                             <tr>
                                 <td style="padding: 8px; background: #f9fafb; font-weight: bold; width: 120px;">Imię i nazwisko:</td>
-                                <td style="padding: 8px; background: #f9fafb;">${sanitizedData.name}</td>
+                                <td style="padding: 8px; background: #f9fafb;">${escapedData.name}</td>
                             </tr>
                             <tr>
                                 <td style="padding: 8px; font-weight: bold;">Email:</td>
-                                <td style="padding: 8px;">${sanitizedData.email}</td>
+                                <td style="padding: 8px;">${escapedData.email}</td>
                             </tr>
                             <tr>
                                 <td style="padding: 8px; background: #f9fafb; font-weight: bold;">Temat:</td>
-                                <td style="padding: 8px; background: #f9fafb;">${sanitizedData.subject}</td>
+                                <td style="padding: 8px; background: #f9fafb;">${escapedData.subject}</td>
                             </tr>
                         </table>
                     </div>
@@ -155,21 +213,21 @@ export async function POST(request: NextRequest) {
                     <div style="margin: 20px 0;">
                         <h3 style="color: #374151; margin-bottom: 15px;">Treść wiadomości:</h3>
                         <div style="background: #f3f4f6; padding: 15px; border-radius: 8px; white-space: pre-wrap; font-family: 'Courier New', monospace;">
-${sanitizedData.message}
+${escapedData.message}
                         </div>
                     </div>
 
                     <div style="margin-top: 30px; padding: 15px; background: #eff6ff; border-left: 4px solid #2563eb; border-radius: 4px;">
                         <p style="margin: 0; color: #1e40af; font-size: 14px;">
                             <strong>Informacja:</strong> Ta wiadomość została wysłana przez formularz kontaktowy na stronie internetowej.
-                            Możesz odpowiedzieć bezpośrednio na ten email, odpowiedź zostanie wysłana na adres: ${sanitizedData.email}
+                            Możesz odpowiedzieć bezpośrednio na ten email, odpowiedź zostanie wysłana na adres: ${escapedData.email}
                         </p>
                     </div>
 
                     <div style="margin-top: 20px; padding: 10px; background: #f9fafb; border-radius: 4px; font-size: 12px; color: #6b7280;">
                         <p style="margin: 0;">Data wysłania: ${new Date().toLocaleString('pl-PL')}</p>
-                        <p style="margin: 0;">IP: ${request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'Unknown'}</p>
-                        <p style="margin: 0;">User-Agent: ${request.headers.get('user-agent') || 'Unknown'}</p>
+                        <p style="margin: 0;">IP: ${clientIp}</p>
+                        <p style="margin: 0;">User-Agent: ${userAgent}</p>
                     </div>
                 </div>
             `,

@@ -15,12 +15,6 @@ export const authConfig = {
       const isAdminRoute =
         nextUrl.pathname.startsWith('/admin') && !nextUrl.pathname.startsWith('/admin/login');
       const isAdminApi = nextUrl.pathname.startsWith('/api/admin');
-      const isWriteApi =
-        !nextUrl.pathname.startsWith('/api/auth') &&
-        !nextUrl.pathname.startsWith('/api/public') &&
-        !nextUrl.pathname.startsWith('/api/contact/send') &&
-        nextUrl.pathname.startsWith('/api/') &&
-        !['GET', 'HEAD', 'OPTIONS'].includes(''); // Write methods checked in middleware
 
       if (isAdminRoute || isAdminApi) {
         return isLoggedIn;
